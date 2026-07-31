@@ -14,5 +14,5 @@ Observed conventions. Derived from the current structure; update as it evolves.
 - No secrets, tokens, tenant identifiers, or customer data in markup or scripts.
 
 ## Validation
-`pwsh scripts/verify.ps1` — confirms `index.html` exists, is non-empty, and is a well-formed
-HTML document.
+`pwsh scripts/verify.ps1` — confirms `index.html` exists, is non-empty, and contains basic HTML structure
+(`<html>...</html>` and `<body>...</body>` tags).
