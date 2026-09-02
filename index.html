@@ -2383,6 +2383,8 @@ html[data-theme="dark"] {
             <option value="legal">Legal &amp; Accounting</option>
             <option value="retail">Retail &amp; eCommerce</option>
             <option value="manufacturing">Manufacturing &amp; Distribution</option>
+            <option value="education">Education</option>
+            <option value="nonprofit">Non-Profit</option>
             <option value="other">Other</option>
           </select>
         </div>
@@ -2957,6 +2959,46 @@ html[data-theme="dark"] {
             "Highly Confidential \ Specific People is the appropriate label for breach evidence shared with legal, forensic, or regulatory parties.",
             "Even post-remediation incident summaries should remain at Confidential \ All Employees or higher if they reference specific users, systems, or vulnerabilities."
           ]
+        },
+        {
+          title: "Student research data and IRB oversight",
+          industries: ["education"],
+          dataTypes: ["health_medical", "personal_ids", "legal_compliance"],
+          points: [
+            "Research data involving human subjects is often governed by an Institutional Review Board (IRB) protocol in addition to FERPA or HIPAA.",
+            "De-identified research datasets may use General or Confidential \ All Employees depending on re-identification risk; identifiable research data should use Highly Confidential \ All Employees or higher.",
+            "Data-use agreements with external research partners typically require Confidential \ Specific People or stricter, matching the agreement's access restrictions."
+          ]
+        },
+        {
+          title: "Grant and funder restricted-use data",
+          industries: ["nonprofit"],
+          dataTypes: ["personal_ids", "tax_financial", "legal_compliance"],
+          points: [
+            "Government and foundation grants often impose contractual restrictions on how program-participant or beneficiary data may be stored, shared, and retained.",
+            "Grant-restricted data should be labeled at least Confidential \ All Employees, and Confidential \ Specific People (or higher) when the funder agreement limits access to named roles.",
+            "Confirm the grant agreement's data-handling terms before choosing a label \u2014 funder restrictions can exceed what general privacy law requires."
+          ]
+        },
+        {
+          title: "Form 990 donor disclosure exception",
+          industries: ["nonprofit"],
+          dataTypes: ["personal_ids", "tax_financial"],
+          points: [
+            "Most 501(c)(3) organizations may keep Schedule B donor names and addresses redacted from public Form 990 disclosure \u2014 this donor list should be labeled Confidential \ All Employees or higher, not General.",
+            "Private foundations (Form 990-PF) and section 527 political organizations must disclose donor identities publicly; confirm entity type before assuming donor data can be withheld.",
+            "Aggregate or anonymized giving totals used for public reporting can remain General; named donor records should not."
+          ]
+        },
+        {
+          title: "State comprehensive privacy law nonprofit exemptions vary",
+          industries: ["nonprofit"],
+          dataTypes: ["personal_ids", "customer_loyalty", "employee_hr"],
+          points: [
+            "Some US state comprehensive privacy laws (e.g., California) broadly exempt nonprofit organizations, while others (e.g., Colorado, New Jersey) regulate qualifying nonprofits similarly to for-profit entities above applicable thresholds.",
+            "Confirm applicable state law before assuming a blanket nonprofit exemption \u2014 do not rely on California's exemption as a default for other states.",
+            "Donor and constituent records should still be labeled based on sensitivity regardless of exemption status; state law affects compliance obligations, not the label itself."
+          ]
         }
       ],
       industryExamples: {
@@ -3147,11 +3189,72 @@ html[data-theme="dark"] {
             "Product recall pack \u2192 Highly Confidential \ Specific People"
           ]}
         ],
+        education: [
+          { dataTypes: null, title: "Education \u2014 General Scenarios", items: [
+            "Course materials, syllabi, and general campus communications \u2192 General",
+            "Student education records (grades, transcripts, disciplinary records) \u2192 Confidential \ All Employees",
+            "Identifiable student health, counseling, or disability-services records \u2192 Highly Confidential \ All Employees",
+            "Records shared externally with regulators, courts, or accreditors under legal process \u2192 Highly Confidential \ Specific People"
+          ]},
+          { dataTypes: ["personal_ids"] , title: "Student & Applicant Records (FERPA)", items: [
+            "Enrollment, transcript, and grade records \u2192 Confidential \ All Employees",
+            "Financial aid applications with SSNs or government IDs \u2192 Highly Confidential \ All Employees",
+            "Directory information designated as public by policy may remain General; confirm opt-out status before disclosure",
+            "Disciplinary or Title IX case files \u2192 Highly Confidential \ Specific People"
+          ]},
+          { dataTypes: ["health_medical"], title: "Student Health & Counseling Records", items: [
+            "Campus health center and counseling records \u2192 Highly Confidential \ All Employees",
+            "Disability/accommodation documentation \u2192 Highly Confidential \ All Employees",
+            "De-identified aggregate wellness statistics for reporting \u2192 General"
+          ]},
+          { dataTypes: ["employee_hr"], title: "Faculty & Staff HR Records", items: [
+            "Faculty/staff payroll and personnel files \u2192 Highly Confidential \ All Employees",
+            "Tenure and promotion review packets \u2192 Confidential \ Specific People",
+            "Aggregate staffing headcount reports (no names) \u2192 General"
+          ]},
+          { dataTypes: ["legal_compliance", "personal_ids"], title: "Research Data & IRB-Governed Studies", items: [
+            "De-identified research datasets with low re-identification risk \u2192 Confidential \ All Employees",
+            "Identifiable human-subjects research data \u2192 Highly Confidential \ All Employees",
+            "Data shared with an external research partner under a data-use agreement \u2192 Confidential \ Specific People or stricter, per the agreement"
+          ]},
+          { dataTypes: ["incident_security"], title: "Campus Safety & Incident Records", items: [
+            "Clery Act crime-log entries designated for public disclosure \u2192 General",
+            "Active investigation files and Title IX case evidence \u2192 Highly Confidential \ Specific People",
+            "Post-incident summary reports referencing specific students or staff \u2192 Confidential \ All Employees or higher"
+          ]}
+        ],
+        nonprofit: [
+          { dataTypes: null, title: "Non-Profit \u2014 General Scenarios", items: [
+            "Program announcements, newsletters, and public-facing impact reports \u2192 General",
+            "Donor and constituent records \u2192 Confidential \ All Employees",
+            "Beneficiary or client case files with sensitive personal details \u2192 Highly Confidential \ All Employees",
+            "Board or funder materials shared externally under restriction \u2192 Confidential \ Specific People"
+          ]},
+          { dataTypes: ["personal_ids", "tax_financial"], title: "Donor & Fundraising Data", items: [
+            "Donor contact and giving-history records \u2192 Confidential \ All Employees",
+            "Major-gift or planned-giving files with financial details \u2192 Highly Confidential \ All Employees",
+            "Form 990 Schedule B donor names/addresses (redacted from public disclosure for most 501(c)(3)s) \u2192 Confidential \ All Employees or higher, not General",
+            "Aggregate, anonymized giving totals used in public annual reports \u2192 General"
+          ]},
+          { dataTypes: ["personal_ids", "legal_compliance"], title: "Beneficiary & Client Case Records", items: [
+            "Client intake forms with identifying details \u2192 Confidential \ All Employees",
+            "Case files involving vulnerable populations (e.g., survivors, minors) \u2192 Highly Confidential \ All Employees",
+            "Records shared with a partner agency under a formal referral agreement \u2192 Confidential \ Specific People"
+          ]},
+          { dataTypes: ["tax_financial", "legal_compliance"], title: "Grant & Funder Compliance", items: [
+            "Grant-restricted program data with funder-mandated access limits \u2192 Confidential \ Specific People or stricter, per the grant agreement",
+            "Grant financial reporting and compliance audits \u2192 Confidential \ All Employees",
+            "Public grant-award announcements (no beneficiary detail) \u2192 General"
+          ]},
+          { dataTypes: ["employee_hr"], title: "Staff & Volunteer Records", items: [
+            "Staff payroll and HR files \u2192 Highly Confidential \ All Employees",
+            "Volunteer background-check and screening records \u2192 Highly Confidential \ All Employees",
+            "Aggregate volunteer-hours reporting (no names) \u2192 General"
+          ]}
+        ],
         other: null
       }
     };
-
-    // ---- CONTEXT MAP ----
     // Maps industry key -> relevant label keys, exception indices, and industryName (matches model.industries[n].name)
     const contextMap = {
       healthcare: {
@@ -3178,6 +3281,16 @@ html[data-theme="dark"] {
         labels: ["confidential_all", "confidential_specific", "hc_all", "hc_exception"],
         exceptions: [0, 1, 2],
         industryName: "Manufacturing and engineering"
+      },
+      education: {
+        labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_specific"],
+        exceptions: [0, 1, 3, 8, 10],
+        industryName: "Education"
+      },
+      nonprofit: {
+        labels: ["general", "confidential_all", "confidential_specific", "hc_all"],
+        exceptions: [0, 1, 3, 8, 11, 12, 13],
+        industryName: "Non-profit"
       },
       other: {
         labels: null,
@@ -3218,6 +3331,8 @@ html[data-theme="dark"] {
       legal:         ["personal_ids", "tax_financial", "legal_compliance", "partner_supplier", "incident_security", "other_data"],
       retail:        ["payment_data", "customer_loyalty", "employee_hr", "trade_secrets_ip", "partner_supplier", "other_data"],
       manufacturing: ["tax_financial", "trade_secrets_ip", "partner_supplier", "employee_hr", "incident_security", "other_data"],
+      education:     ["personal_ids", "health_medical", "employee_hr", "legal_compliance", "tax_financial", "incident_security", "other_data"],
+      nonprofit:     ["personal_ids", "customer_loyalty", "employee_hr", "tax_financial", "legal_compliance", "other_data"],
       other:         ["personal_ids", "payment_data", "health_medical", "tax_financial", "legal_compliance", "customer_loyalty", "employee_hr", "trade_secrets_ip", "partner_supplier", "incident_security", "other_data"]
     };
 
@@ -3231,7 +3346,7 @@ html[data-theme="dark"] {
     }
 
     const geographyRegulationRules = {
-      "US": ["hipaa", "pci_dss", "ccpa", "state_privacy_us", "sox", "glba", "itar_ear", "ferpa", "coppa", "nydfs_cyber", "circia"],
+      "US": ["hipaa", "pci_dss", "ccpa", "state_privacy_us", "sox", "glba", "itar_ear", "ferpa", "coppa", "nydfs_cyber", "circia", "state_student_privacy_us", "charitable_solicitation_us"],
       "California": ["ccpa", "state_privacy_us"],
       "EU / EEA": ["gdpr", "dora", "nis2", "ai_act_eu", "data_act_eu", "cra_eu"],
       "EU/UK": ["gdpr", "uk_gdpr", "dora", "nis2", "ai_act_eu", "data_act_eu", "cra_eu"],
@@ -3609,12 +3724,22 @@ html[data-theme="dark"] {
       {
         key: "ferpa",
         label: "FERPA (US)",
-        autoSuggest: { industries: ["other"], dataTypes: ["personal_ids", "employee_hr", "legal_compliance"] }
+        autoSuggest: { industries: ["education"], dataTypes: ["personal_ids", "employee_hr", "legal_compliance"] }
       },
       {
         key: "coppa",
         label: "COPPA (US)",
-        autoSuggest: { industries: ["retail", "other"], dataTypes: ["personal_ids", "customer_loyalty"] }
+        autoSuggest: { industries: ["retail", "education", "other"], dataTypes: ["personal_ids", "customer_loyalty"] }
+      },
+      {
+        key: "state_student_privacy_us",
+        label: "State Student Data Privacy Laws (US)",
+        autoSuggest: { industries: ["education"], dataTypes: ["personal_ids", "employee_hr"] }
+      },
+      {
+        key: "charitable_solicitation_us",
+        label: "Charitable Solicitation Registration (US)",
+        autoSuggest: { industries: ["nonprofit"], dataTypes: ["personal_ids"] }
       },
       {
         key: "nydfs_cyber",
@@ -4076,6 +4201,8 @@ html[data-theme="dark"] {
       legal:         "Legal & Accounting",
       retail:        "Retail & eCommerce",
       manufacturing: "Manufacturing & Distribution",
+      education:     "Education",
+      nonprofit:     "Non-Profit",
       other:         "Other"
     };
 
@@ -4741,7 +4868,7 @@ html[data-theme="dark"] {
       if (!cards) {
         // No industry selected or "other": aggregate one card per top-level industry
         cards = [];
-        ["healthcare","financial","legal","retail","manufacturing"].forEach(function(key) {
+        ["healthcare","financial","legal","retail","manufacturing","education","nonprofit"].forEach(function(key) {
           var bucket = model.industryExamples[key];
           if (bucket && bucket.length) cards.push(bucket[0]);
         });
