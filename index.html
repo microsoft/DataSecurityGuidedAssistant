@@ -2976,7 +2976,7 @@ html[data-theme="dark"] {
           dataTypes: ["personal_ids", "tax_financial", "legal_compliance"],
           points: [
             "Government and foundation grants often impose contractual restrictions on how program-participant or beneficiary data may be stored, shared, and retained.",
-            "Grant-restricted data should be labeled at least Confidential \ All Employees, and Confidential \ Specific People (or higher) when the funder agreement limits access to named roles.",
+            "Grant-restricted data should use Confidential \ Specific People or Highly Confidential \ Specific People when the funder agreement limits access to named roles; do not use All Employees for restricted records.",
             "Confirm the grant agreement's data-handling terms before choosing a label \u2014 funder restrictions can exceed what general privacy law requires."
           ]
         },
@@ -3255,7 +3255,7 @@ html[data-theme="dark"] {
         other: null
       }
     };
-    // Maps industry key -> relevant label keys, exception indices, and industryName (matches model.industries[n].name)
+    // Maps industry keys to label scope, exception indices, and display names used by the context flow.
     const contextMap = {
       healthcare: {
         labels: ["confidential_all", "confidential_specific", "hc_all", "hc_specific"],
@@ -3347,7 +3347,7 @@ html[data-theme="dark"] {
 
     const geographyRegulationRules = {
       "US": ["hipaa", "pci_dss", "ccpa", "state_privacy_us", "sox", "glba", "itar_ear", "ferpa", "coppa", "nydfs_cyber", "circia", "state_student_privacy_us", "charitable_solicitation_us"],
-      "California": ["ccpa", "state_privacy_us"],
+      "California": ["ccpa", "state_privacy_us", "state_student_privacy_us", "charitable_solicitation_us"],
       "EU / EEA": ["gdpr", "dora", "nis2", "ai_act_eu", "data_act_eu", "cra_eu"],
       "EU/UK": ["gdpr", "uk_gdpr", "dora", "nis2", "ai_act_eu", "data_act_eu", "cra_eu"],
       "UK / Switzerland": ["uk_gdpr", "fadp_ch"],
@@ -3523,21 +3523,25 @@ html[data-theme="dark"] {
           return rules.indexOf(reg.key) !== -1;
         });
         var geographyMatch = !geographyFilterActive || matchingGeographies.length > 0;
+        var regulationMatchesContext = s.industries
+          ? industryMatch
+          : (!s.dataTypes || matchedDataTypes.length > 0);
+        if (!regulationMatchesContext) return;
 
         if (industryMatch && s.industries && s.industries.indexOf(industryKey) !== -1) {
           reasons.push((industryDisplayLabels[industryKey] || industryKey) + " context");
         }
-        if (industryMatch && matchedDataTypes.length) {
+        if (!s.industries && matchedDataTypes.length) {
           reasons.push("data type: " + matchedDataTypes.map(getDataTypeLabel).join(", "));
         }
-        if (geographyFilterActive && geographyMatch && (industryMatch || matchedDataTypes.length || !s.industries)) {
+        if (geographyFilterActive && geographyMatch) {
           reasons.push("region: " + matchingGeographies.join(", "));
         }
         if (!geographyFilterActive && industryMatch && !s.dataTypes) {
           reasons.push("industry default");
         }
 
-        if (reasons.length && (!geographyFilterActive || geographyMatch)) {
+        if (reasons.length && regulationMatchesContext && (!geographyFilterActive || geographyMatch)) {
           derived[reg.key] = {
             suggested: true,
             reasons: reasons
@@ -4177,6 +4181,13 @@ html[data-theme="dark"] {
         confidential_specific: "NZ Privacy Act: Data shared with agencies or overseas parties — Principle 12 requires comparable privacy safeguards before offshore disclosure.",
         hc_all:                "NZ Privacy Act: Sensitive data — breaches likely to cause serious harm must be notified to OPC and affected individuals without undue delay.",
         hc_specific:           "NZ Privacy Act: Data disclosed externally — document Principle 12 safeguards for any overseas transfer; retain disclosure records for OPC review."
+      },
+      charitable_solicitation_us: {
+        general:               "Charitable solicitation registration: Registration and disclosure obligations do not make donor records public by default; classify donor data by sensitivity before any disclosure.",
+        confidential_all:      "Charitable solicitation registration: Keep donor and constituent records limited to authorized staff; confirm state registration filings do not include unnecessary personal details.",
+        confidential_specific: "Charitable solicitation registration: Donor information shared with a state regulator, fundraiser, or service provider should use named-recipient access and documented disclosure purpose.",
+        hc_all:                "Charitable solicitation registration: Sensitive donor, beneficiary, or payment information requires strict need-to-know access, audit logging, and retention controls.",
+        hc_specific:           "Charitable solicitation registration: External disclosure of sensitive donor information requires named recipients, approval evidence, and confirmation that the filing or request requires the data."
       }
     };
 
