@@ -8,6 +8,7 @@ Format: `## vX.Y.Z — YYYY-MM-DD` followed by bullet points.
 - Re-tag FERPA to Education and add Education to COPPA's applicable industries.
 - Add State Student Data Privacy Laws (US) and Charitable Solicitation Registration (US) as new regulatory considerations, wired into the US region.
 - Add exception guidance for student research data/IRB oversight, grant/funder restricted-use data, Form 990 donor disclosure, and state privacy law nonprofit exemption variance.
+- Restrict industry-specific regulation suggestions to matching industries, preserve California-specific sector regulations, and clarify nonprofit restricted-record and charitable-solicitation guidance.
 
 ## v2.0.1570 — 2026-06-16
 - Expand regulatory considerations with country/region-specific options, consistent `Name (Country/Region)` naming, region-filtered population, and shared DLP/labeling suggestions.
