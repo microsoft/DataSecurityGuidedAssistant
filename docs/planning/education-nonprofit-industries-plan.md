@@ -1,6 +1,6 @@
 # Plan: Add "Education" and "Non-Profit" Industries
 
-Status: **Planning only — no code changes made.**
+Status: **Implemented in PR #7.**
 Scope: `index.html` (single-file app). This document is the living record of
 research and implementation planning for adding two new industry options to
 the guided data-sensitivity/DLP assistant.
@@ -208,13 +208,13 @@ silently disappear when a user narrows by region/country.
 
 ---
 
-*Last updated: 2026-09-01. Geography research is complete and exhaustive —
+*Last updated: 2026-09-10. Geography research is complete and exhaustive —
 every key in `geographyRegulationRules` (29 distinct countries/regions,
 covering all 41 map entries once aggregate/duplicate rows are accounted for)
 has been individually researched. US confirmed as the only geography
 requiring new regulationDefs. All open questions in §4 are now resolved:
 nonprofit needs no regulationDef beyond the two already proposed (§2.2), and
-Form 990 Schedule B donor-identity redaction is modeled as a
-`model.exceptions` entry, not a regulationDef. Remaining work is
-content-authoring detail (§3) and README/CHANGELOG verification (§5) — no
-open research questions remain. Still planning-only; no code changes made.*
+Form 990 Schedule B donor-identity redaction is modeled as a `model.exceptions`
+entry, not a regulationDef. The implementation work for §1, §2.1, §2.2, §3,
+and §5 is complete in PR #7; no open research or implementation questions
+remain.*
