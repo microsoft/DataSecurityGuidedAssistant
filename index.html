@@ -6444,7 +6444,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
           addUniqueSitFamily(families, 'payment_data');
           addUniqueSitFamily(families, 'tax_financial');
         }
-        if (['gdpr', 'uk_gdpr', 'ccpa', 'state_privacy_us', 'ferpa', 'coppa', 'pipeda', 'lgpd', 'privacy_act_au', 'dpdp', 'pdpa_sg', 'pipa_kr', 'appi_jp', 'my_number_jp', 'ppc_guidelines_jp', 'pipl_cn', 'pdpa_tw', 'pdpl_uae', 'pdpl_ksa', 'data_protection_qa', 'pdpl_bh', 'pdpl_om', 'nz_privacy', 'popia_za', 'pdpa_th', 'pdp_id', 'dpa_ph', 'pdpa_my', 'pdpo_hk', 'pdpd_vn', 'lfpdppp_mx', 'lpdp_ar', 'law_1581_co', 'data_protection_cl', 'fadp_ch', 'kvkk_tr', 'privacy_il'].indexOf(reg) !== -1) addUniqueSitFamily(families, 'personal_ids');
+        if (['gdpr', 'uk_gdpr', 'ccpa', 'state_privacy_us', 'state_student_privacy_us', 'charitable_solicitation_us', 'ferpa', 'coppa', 'pipeda', 'lgpd', 'privacy_act_au', 'dpdp', 'pdpa_sg', 'pipa_kr', 'appi_jp', 'my_number_jp', 'ppc_guidelines_jp', 'pipl_cn', 'pdpa_tw', 'pdpl_uae', 'pdpl_ksa', 'data_protection_qa', 'pdpl_bh', 'pdpl_om', 'nz_privacy', 'popia_za', 'pdpa_th', 'pdp_id', 'dpa_ph', 'pdpa_my', 'pdpo_hk', 'pdpd_vn', 'lfpdppp_mx', 'lpdp_ar', 'law_1581_co', 'data_protection_cl', 'fadp_ch', 'kvkk_tr', 'privacy_il'].indexOf(reg) !== -1) addUniqueSitFamily(families, 'personal_ids');
         if (['dora', 'nis2', 'cra_eu', 'circia', 'apra_cps234', 'csl_cn', 'cybersecurity_tw', 'tba_jp', 'cybersecurity_act_jp', 'pdpd_vn', 'nydfs_cyber', 'privacy_il'].indexOf(reg) !== -1) addUniqueSitFamily(families, 'incident_security');
         if (['itar_ear', 'ucpa_jp', 'data_act_eu', 'ai_act_eu', 'ai_guidelines_jp'].indexOf(reg) !== -1) addUniqueSitFamily(families, 'trade_secrets_ip');
       });
@@ -6573,7 +6573,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       (state.context.regulations || []).forEach(function(reg) {
         if (['hipaa', 'mhlw_guidelines_jp'].indexOf(reg) !== -1) add('Health and medical');
         if (['pci_dss', 'glba', 'sox', 'fsa_guidelines_jp', 'apra_cps234', 'nydfs_cyber'].indexOf(reg) !== -1) add('Financial and tax');
-        if (['gdpr', 'uk_gdpr', 'ccpa', 'state_privacy_us', 'ferpa', 'coppa', 'pipeda', 'lgpd', 'privacy_act_au', 'dpdp', 'pdpa_sg', 'pipa_kr', 'appi_jp', 'my_number_jp', 'ppc_guidelines_jp', 'pipl_cn', 'pdpa_tw', 'pdpl_uae', 'pdpl_ksa', 'data_protection_qa', 'pdpl_bh', 'pdpl_om', 'nz_privacy', 'popia_za', 'pdpa_th', 'pdp_id', 'dpa_ph', 'pdpa_my', 'pdpo_hk', 'pdpd_vn', 'lfpdppp_mx', 'lpdp_ar', 'law_1581_co', 'data_protection_cl', 'fadp_ch', 'kvkk_tr', 'privacy_il'].indexOf(reg) !== -1) {
+        if (['gdpr', 'uk_gdpr', 'ccpa', 'state_privacy_us', 'state_student_privacy_us', 'charitable_solicitation_us', 'ferpa', 'coppa', 'pipeda', 'lgpd', 'privacy_act_au', 'dpdp', 'pdpa_sg', 'pipa_kr', 'appi_jp', 'my_number_jp', 'ppc_guidelines_jp', 'pipl_cn', 'pdpa_tw', 'pdpl_uae', 'pdpl_ksa', 'data_protection_qa', 'pdpl_bh', 'pdpl_om', 'nz_privacy', 'popia_za', 'pdpa_th', 'pdp_id', 'dpa_ph', 'pdpa_my', 'pdpo_hk', 'pdpd_vn', 'lfpdppp_mx', 'lpdp_ar', 'law_1581_co', 'data_protection_cl', 'fadp_ch', 'kvkk_tr', 'privacy_il'].indexOf(reg) !== -1) {
           add('Personal identifiers');
           add('Addresses');
         }

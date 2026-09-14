@@ -16,12 +16,12 @@ new industry (`education`, `nonprofit`) must be added to each:
 |---|----------|---------------|---------------|
 | 1 | `<select id="industrySelect">` | ~2379-2387 | Dropdown options shown to user |
 | 2 | `industryDisplayLabels` | ~4073-4080 | Human-readable label lookup |
-| 3 | `contextMap` | ~3156-3187 | Per-industry `labels`, `exceptions` (indices), `industryName` |
+| 3 | `contextMap` | ~3156-3187 | Per-industry `labels` and `industryName` used for label scope and display |
 | 4 | `industryDataTypes` | ~3215-3222 | Which data-type checkboxes are shown/pre-relevant per industry |
 | 5 | `model.exceptions` | ~2860-2960 | Guidance cards filtered by an `industries` array per entry |
 | 6 | `model.industryExamples` | ~2962-3151 | Per-industry scenario cards (largest content-authoring task) |
 | 7 | `regulationDefs[].autoSuggest.industries` | ~3568-3875+ | Regulation auto-suggestion per industry |
-| 8 | `getRelevantIndustries()` hardcoded array | ~4744 | `["healthcare","financial","legal","retail","manufacturing"]` — aggregate "cross-industry scenarios" view when no industry selected; easy to miss |
+| 8 | `getRelevantIndustries()` hardcoded array | ~4744 | `["healthcare","financial","legal","retail","manufacturing","education","nonprofit"]` — aggregate "cross-industry scenarios" view when no industry selected; easy to miss |
 | 9 | `renderIndustries()` | ~5259-5288 | Rendering function consuming the above (no changes needed itself, just confirms wiring) |
 
 **Not required:** SIT/DLP recommendation logic (`deriveContextualSitFamilies`,
