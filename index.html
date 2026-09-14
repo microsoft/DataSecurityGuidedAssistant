@@ -3255,46 +3255,38 @@ html[data-theme="dark"] {
         other: null
       }
     };
-    // Maps industry keys to label scope, exception indices, and display names used by the context flow.
+    // Maps industry keys to label scope and display names used by the context flow.
     const contextMap = {
       healthcare: {
         labels: ["confidential_all", "confidential_specific", "hc_all", "hc_specific"],
-        exceptions: [0, 1, 2],
         industryName: "Healthcare"
       },
       financial: {
         labels: ["confidential_all", "confidential_specific", "hc_all", "hc_specific"],
-        exceptions: [0, 1, 2, 3],
         industryName: "Financial services and insurance"
       },
       legal: {
         labels: ["confidential_specific", "hc_all", "hc_specific"],
-        exceptions: [0, 1, 2, 3],
         industryName: "Professional services"
       },
       retail: {
         labels: ["general", "confidential_all", "confidential_specific", "hc_all"],
-        exceptions: [0, 1],
         industryName: "Retail and consumer goods"
       },
       manufacturing: {
         labels: ["confidential_all", "confidential_specific", "hc_all", "hc_exception"],
-        exceptions: [0, 1, 2],
         industryName: "Manufacturing and engineering"
       },
       education: {
         labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_specific"],
-        exceptions: [0, 1, 3, 8, 10],
         industryName: "Education"
       },
       nonprofit: {
         labels: ["general", "confidential_all", "confidential_specific", "hc_all"],
-        exceptions: [0, 1, 3, 8, 11, 12, 13],
         industryName: "Non-profit"
       },
       other: {
         labels: null,
-        exceptions: null,
         industryName: null
       }
     };
