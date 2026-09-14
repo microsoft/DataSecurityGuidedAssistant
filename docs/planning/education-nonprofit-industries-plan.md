@@ -52,7 +52,7 @@ Proposed new `regulationDefs` entries:
 
 | Proposed key | Label | `autoSuggest.industries` | `autoSuggest.dataTypes` | Geography wiring |
 |---|---|---|---|---|
-| `state_student_privacy_us` | State Student Data Privacy Laws (US) | `["education"]` | `["personal_ids","employee_hr"]` | Add to `geographyRegulationRules["US"]` |
+| `state_student_privacy_us` | State Student Data Privacy Laws (US) | `["education"]` | `["personal_ids"]` | Add to `geographyRegulationRules["US"]` |
 | `charitable_solicitation_us` | Charitable Solicitation Registration (US) | `["nonprofit"]` | `["personal_ids"]` (donor PII) | Add to `geographyRegulationRules["US"]` |
 
 **Why aggregated, not state-by-state:** ~150 state student-privacy laws exist

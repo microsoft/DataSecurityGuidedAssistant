@@ -3192,12 +3192,12 @@ html[data-theme="dark"] {
         education: [
           { dataTypes: null, title: "Education \u2014 General Scenarios", items: [
             "Course materials, syllabi, and general campus communications \u2192 General",
-            "Student education records (grades, transcripts, disciplinary records) \u2192 Confidential \ All Employees",
+            "Student education records (grades, transcripts, disciplinary records) \u2192 Confidential \ Specific People",
             "Identifiable student health, counseling, or disability-services records \u2192 Highly Confidential \ Specific People",
             "Records shared externally with regulators, courts, or accreditors under legal process \u2192 Highly Confidential \ Specific People"
           ]},
           { dataTypes: ["personal_ids"] , title: "Student & Applicant Records (FERPA)", items: [
-            "Enrollment, transcript, and grade records \u2192 Confidential \ All Employees",
+            "Enrollment, transcript, and grade records \u2192 Confidential \ Specific People",
             "Financial aid applications with SSNs or government IDs \u2192 Highly Confidential \ Specific People",
             "Directory information designated as public by policy may remain General; confirm opt-out status before disclosure",
             "Disciplinary or Title IX case files \u2192 Highly Confidential \ Specific People"
@@ -3719,7 +3719,7 @@ html[data-theme="dark"] {
       {
         key: "ferpa",
         label: "FERPA (US)",
-        autoSuggest: { industries: ["education"], dataTypes: ["personal_ids", "employee_hr", "legal_compliance"] }
+        autoSuggest: { industries: ["education"], dataTypes: ["personal_ids", "legal_compliance"] }
       },
       {
         key: "coppa",
@@ -3729,7 +3729,7 @@ html[data-theme="dark"] {
       {
         key: "state_student_privacy_us",
         label: "State Student Data Privacy Laws (US)",
-        autoSuggest: { industries: ["education"], dataTypes: ["personal_ids", "employee_hr"] }
+        autoSuggest: { industries: ["education"], dataTypes: ["personal_ids"] }
       },
       {
         key: "charitable_solicitation_us",
