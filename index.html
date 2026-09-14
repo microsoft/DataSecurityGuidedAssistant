@@ -3193,18 +3193,18 @@ html[data-theme="dark"] {
           { dataTypes: null, title: "Education \u2014 General Scenarios", items: [
             "Course materials, syllabi, and general campus communications \u2192 General",
             "Student education records (grades, transcripts, disciplinary records) \u2192 Confidential \ All Employees",
-            "Identifiable student health, counseling, or disability-services records \u2192 Highly Confidential \ All Employees",
+            "Identifiable student health, counseling, or disability-services records \u2192 Highly Confidential \ Specific People",
             "Records shared externally with regulators, courts, or accreditors under legal process \u2192 Highly Confidential \ Specific People"
           ]},
           { dataTypes: ["personal_ids"] , title: "Student & Applicant Records (FERPA)", items: [
             "Enrollment, transcript, and grade records \u2192 Confidential \ All Employees",
-            "Financial aid applications with SSNs or government IDs \u2192 Highly Confidential \ All Employees",
+            "Financial aid applications with SSNs or government IDs \u2192 Highly Confidential \ Specific People",
             "Directory information designated as public by policy may remain General; confirm opt-out status before disclosure",
             "Disciplinary or Title IX case files \u2192 Highly Confidential \ Specific People"
           ]},
           { dataTypes: ["health_medical"], title: "Student Health & Counseling Records", items: [
-            "Campus health center and counseling records \u2192 Highly Confidential \ All Employees",
-            "Disability/accommodation documentation \u2192 Highly Confidential \ All Employees",
+            "Campus health center and counseling records \u2192 Highly Confidential \ Specific People",
+            "Disability/accommodation documentation \u2192 Highly Confidential \ Specific People",
             "De-identified aggregate wellness statistics for reporting \u2192 General"
           ]},
           { dataTypes: ["employee_hr"], title: "Faculty & Staff HR Records", items: [
@@ -3214,20 +3214,20 @@ html[data-theme="dark"] {
           ]},
           { dataTypes: ["legal_compliance", "personal_ids"], title: "Research Data & IRB-Governed Studies", items: [
             "De-identified research datasets with low re-identification risk \u2192 Confidential \ All Employees",
-            "Identifiable human-subjects research data \u2192 Highly Confidential \ All Employees",
+            "Identifiable human-subjects research data \u2192 Highly Confidential \ Specific People",
             "Data shared with an external research partner under a data-use agreement \u2192 Confidential \ Specific People or stricter, per the agreement"
           ]},
           { dataTypes: ["incident_security"], title: "Campus Safety & Incident Records", items: [
             "Clery Act crime-log entries designated for public disclosure \u2192 General",
             "Active investigation files and Title IX case evidence \u2192 Highly Confidential \ Specific People",
-            "Post-incident summary reports referencing specific students or staff \u2192 Confidential \ All Employees or higher"
+            "Post-incident summary reports referencing specific students or staff \u2192 Confidential \ Specific People or higher"
           ]}
         ],
         nonprofit: [
           { dataTypes: null, title: "Non-Profit \u2014 General Scenarios", items: [
             "Program announcements, newsletters, and public-facing impact reports \u2192 General",
             "Donor and constituent records \u2192 Confidential \ All Employees",
-            "Beneficiary or client case files with sensitive personal details \u2192 Highly Confidential \ All Employees",
+            "Beneficiary or client case files with sensitive personal details \u2192 Highly Confidential \ Specific People",
             "Board or funder materials shared externally under restriction \u2192 Confidential \ Specific People"
           ]},
           { dataTypes: ["personal_ids", "tax_financial"], title: "Donor & Fundraising Data", items: [
@@ -3237,8 +3237,8 @@ html[data-theme="dark"] {
             "Aggregate, anonymized giving totals used in public annual reports \u2192 General"
           ]},
           { dataTypes: ["personal_ids", "legal_compliance"], title: "Beneficiary & Client Case Records", items: [
-            "Client intake forms with identifying details \u2192 Confidential \ All Employees",
-            "Case files involving vulnerable populations (e.g., survivors, minors) \u2192 Highly Confidential \ All Employees",
+            "Client intake forms with identifying details \u2192 Confidential \ Specific People",
+            "Case files involving vulnerable populations (e.g., survivors, minors) \u2192 Highly Confidential \ Specific People",
             "Records shared with a partner agency under a formal referral agreement \u2192 Confidential \ Specific People"
           ]},
           { dataTypes: ["tax_financial", "legal_compliance"], title: "Grant & Funder Compliance", items: [
@@ -3523,15 +3523,14 @@ html[data-theme="dark"] {
           return rules.indexOf(reg.key) !== -1;
         });
         var geographyMatch = !geographyFilterActive || matchingGeographies.length > 0;
-        var regulationMatchesContext = s.industries
-          ? industryMatch
-          : (!s.dataTypes || matchedDataTypes.length > 0);
+        var regulationMatchesContext = industryMatch
+          && (!s.dataTypes || matchedDataTypes.length > 0);
         if (!regulationMatchesContext) return;
 
         if (industryMatch && s.industries && s.industries.indexOf(industryKey) !== -1) {
           reasons.push((industryDisplayLabels[industryKey] || industryKey) + " context");
         }
-        if (!s.industries && matchedDataTypes.length) {
+        if (matchedDataTypes.length) {
           reasons.push("data type: " + matchedDataTypes.map(getDataTypeLabel).join(", "));
         }
         if (geographyFilterActive && geographyMatch) {
@@ -4186,8 +4185,10 @@ html[data-theme="dark"] {
         general:               "Charitable solicitation registration: Registration and disclosure obligations do not make donor records public by default; classify donor data by sensitivity before any disclosure.",
         confidential_all:      "Charitable solicitation registration: Keep donor and constituent records limited to authorized staff; confirm state registration filings do not include unnecessary personal details.",
         confidential_specific: "Charitable solicitation registration: Donor information shared with a state regulator, fundraiser, or service provider should use named-recipient access and documented disclosure purpose.",
+        confidential_exception:"Charitable solicitation registration: Any exception to the normal protection path must document why the filing or request needs the donor information and what compensating controls apply.",
         hc_all:                "Charitable solicitation registration: Sensitive donor, beneficiary, or payment information requires strict need-to-know access, audit logging, and retention controls.",
-        hc_specific:           "Charitable solicitation registration: External disclosure of sensitive donor information requires named recipients, approval evidence, and confirmation that the filing or request requires the data."
+        hc_specific:           "Charitable solicitation registration: External disclosure of sensitive donor information requires named recipients, approval evidence, and confirmation that the filing or request requires the data.",
+        hc_exception:          "Charitable solicitation registration: A highly confidential exception requires legal, privacy, or security approval before donor or beneficiary information is disclosed."
       }
     };
 
