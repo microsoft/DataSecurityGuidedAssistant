@@ -9571,7 +9571,27 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       return normalized;
     }
 
-    function getTrustedRationaleForKey(labelKey) {
+    function getTerminalBranchFromHistory(history, expectedResultKey) {
+      if (!Array.isArray(history) || !history.length) return null;
+      var currentQuestionId = 'q1';
+      for (var i = 0; i < history.length; i++) {
+        var step = history[i];
+        if (!step || step.questionId !== currentQuestionId || !hasOwn(model.questions, step.questionId)) return null;
+        var answerKey = step.answer === 'YES' ? 'yes' : (step.answer === 'NO' ? 'no' : null);
+        if (!answerKey) return null;
+        var branch = model.questions[step.questionId][answerKey];
+        if (!branch) return null;
+        if (branch.result) return branch.result === expectedResultKey ? branch : null;
+        currentQuestionId = branch.next;
+        if (!currentQuestionId) return null;
+      }
+      return null;
+    }
+
+    function getTrustedRationaleForKey(labelKey, history) {
+      var terminalBranch = getTerminalBranchFromHistory(history, labelKey);
+      if (terminalBranch && terminalBranch.rationale) return terminalBranch.rationale;
+      if (Array.isArray(history) && history.length) return 'The saved decision path maps to this label in the current built-in model.';
       var questionIds = Object.keys(model.questions);
       for (var i = 0; i < questionIds.length; i++) {
         var question = model.questions[questionIds[i]];
@@ -9615,14 +9635,15 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         ? (hasOwn(fourTierLabels, getFourTierKey(entry.labelKey)) ? fourTierLabels[getFourTierKey(entry.labelKey)] : model.labels[entry.labelKey])
         : model.labels[entry.labelKey];
       var sanitizedDlpSummary = sanitizeDlpSummary(entry.dlpSummary, path + '.dlpSummary');
+      var sanitizedHistory = sanitizeImportedHistory(entry.history, path + '.history');
       return {
         labelKey: entry.labelKey,
         labelName: trustedLabel.name,
         implementationLabelName: model.labels[entry.labelKey].name,
         labelModel: entry.labelModel || '8tier',
         color: model.labels[entry.labelKey].color,
-        rationale: getTrustedRationaleForKey(entry.labelKey),
-        history: sanitizeImportedHistory(entry.history, path + '.history'),
+        rationale: getTrustedRationaleForKey(entry.labelKey, sanitizedHistory),
+        history: sanitizedHistory,
         regulations: (entry.regulations || []).slice(),
         contextSnapshot: sanitizeImportedContext(entry.contextSnapshot || fallbackContext || {}, path + '.contextSnapshot'),
         dlpEnabled: !!sanitizedDlpSummary,
@@ -9846,7 +9867,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       if (sanitized.labelingState) {
         sanitized.labelingState.history = sanitizeImportedHistory(sanitized.labelingState.history, 'labelingState.history');
         sanitized.labelingState.rationale = sanitized.labelingState.resultKey
-          ? getTrustedRationaleForKey(sanitized.labelingState.resultKey)
+          ? getTrustedRationaleForKey(sanitized.labelingState.resultKey, sanitized.labelingState.history)
           : '';
       }
       return sanitized;
@@ -9896,7 +9917,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         state.currentQuestionId = hasOwn(model.questions, labelingState.currentQuestionId) ? labelingState.currentQuestionId : (labelingState.resultKey ? null : 'q1');
         state.history = cloneData(labelingState.history || []);
         state.resultKey = hasOwn(model.labels, labelingState.resultKey) ? labelingState.resultKey : null;
-        state.rationale = state.resultKey ? getTrustedRationaleForKey(state.resultKey) : '';
+        state.rationale = state.resultKey ? getTrustedRationaleForKey(state.resultKey, state.history) : '';
         if (!state.currentQuestionId && !state.resultKey) state.currentQuestionId = 'q1';
       } else {
         resetFlow(false, false);

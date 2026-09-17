@@ -77,6 +77,34 @@ test('imports trusted session keys without rendering imported markup or handlers
   expect(await page.evaluate(() => window.__importPwned === 1)).toBe(false);
 });
 
+test('uses the imported decision path when rebuilding duplicate-label rationale', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  const generalHistory = [
+    { questionId: 'q1', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q2', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q3', question: 'untrusted', answer: 'NO' }
+  ];
+  payload.labelingState.resultKey = 'general';
+  payload.labelingState.history = generalHistory;
+  payload.sessionLog[0].labelKey = 'general';
+  payload.sessionLog[0].history = generalHistory;
+  payload.visibleLabelKeys = ['general'];
+
+  await importTestSession(page, payload);
+
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#result .result-summary')).toContainText('Without named people or non-public business data, the content stays at General.');
+  await expect(page.locator('#result .result-summary')).not.toContainText('low-risk internal business information');
+  expect(await page.evaluate(() => ({
+    stateRationale: state.rationale,
+    savedRationale: state.sessionLog[0].rationale
+  }))).toEqual({
+    stateRationale: 'Without named people or non-public business data, the content stays at General.',
+    savedRationale: 'Without named people or non-public business data, the content stays at General.'
+  });
+});
+
 test('rejects imported sessions with unknown fields or unsupported versions', async ({ page }) => {
   await page.goto('/?testMode=true');
   const unknownFieldPayload = validImportedSession();
