@@ -1,6 +1,6 @@
 {
   "name": "data-security-guided-assistant",
-  "version": "2.0.1571",
+  "version": "2.0.1572",
   "private": true,
   "scripts": {
     "check:html": "html-validate index.html",

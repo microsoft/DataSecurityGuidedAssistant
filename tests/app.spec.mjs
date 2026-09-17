@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { readFileSync } from 'node:fs';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -112,6 +113,33 @@ test('rejects inherited label and question property names', async ({ page }) => 
   inheritedDlpLabel.dlpState = { selectedLabels: ['constructor'] };
   await importTestSession(page, inheritedDlpLabel);
   await expect(page.locator('#testStatus')).toContainText('dlpState.selectedLabels contains an unknown label key');
+
+  const inheritedDataType = validImportedSession();
+  inheritedDataType.context.dataTypes = ['constructor'];
+  await importTestSession(page, inheritedDataType);
+  await expect(page.locator('#testStatus')).toContainText('context.dataTypes contains an unknown value');
+
+  const inheritedGeography = validImportedSession();
+  inheritedGeography.context.orgProfile = { geography: ['constructor'] };
+  await importTestSession(page, inheritedGeography);
+  await expect(page.locator('#testStatus')).toContainText('context.orgProfile.geography contains an unknown value');
+
+  const inheritedSitFamily = validImportedSession();
+  inheritedSitFamily.dlpState = {
+    posture: {
+      enforcement: '',
+      sitFamilies: ['constructor'],
+      selectedSits: [],
+      strictnessOverride: ''
+    }
+  };
+  await importTestSession(page, inheritedSitFamily);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.posture.sitFamilies contains an unknown value');
+
+  expect(await page.evaluate(() => ({
+    countries: getCountryFilterOptionsForGeographies(['constructor']),
+    sits: getSitKeysForFamilies(['constructor'])
+  }))).toEqual({ countries: [], sits: [] });
 });
 
 test('round-trips the emitted encrypted envelope and algorithm', async ({ page }) => {
@@ -141,7 +169,7 @@ test('imports combined flow context with exported geography arrays', async ({ pa
   const payload = validImportedSession();
   payload.selectedToolFlow = 'both';
   payload.context.orgProfile = {
-    geography: ['north_america', 'europe'],
+    geography: ['US', 'EU / EEA'],
     workforce: 'Hybrid',
     deviceModel: 'Mix',
     contractors: 'Yes'
@@ -157,7 +185,7 @@ test('imports combined flow context with exported geography arrays', async ({ pa
   }));
   expect(imported).toEqual({
     selectedToolFlow: 'both',
-    geography: ['north_america', 'europe']
+    geography: ['US', 'EU / EEA']
   });
 });
 
@@ -176,7 +204,7 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
     history: ['g1', 'g2'],
     posture: {
       enforcement: 'balanced',
-      sitFamilies: ['privacy'],
+      sitFamilies: ['personal_ids'],
       selectedSits: ['all_full_names'],
       strictnessOverride: ''
     },
@@ -203,6 +231,16 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
     derived: null
   };
 
+  const extracted = await page.evaluate(imported => {
+    const sanitized = validateAndSanitizeImportedSession(imported);
+    return extractLabelKeysFromImportedSession(sanitized);
+  }, payload);
+  expect(extracted).toEqual(expect.arrayContaining([
+    'confidential_all',
+    'confidential_specific',
+    'confidential_exception'
+  ]));
+
   await importTestSession(page, payload);
 
   await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
@@ -218,6 +256,105 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
     minCount: 2,
     derivedIsObject: true
   });
+});
+
+test('normalizes license aliases and rejects unknown licenses', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const aliasPayload = validImportedSession();
+  aliasPayload.context.licensing = 'e3';
+  aliasPayload.context.licensingLabel = 'untrusted';
+  aliasPayload.sessionLog[0].contextSnapshot.licensing = 'e3';
+  aliasPayload.sessionLog[0].contextSnapshot.licensingLabel = 'untrusted';
+
+  await importTestSession(page, aliasPayload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  expect(await page.evaluate(() => ({
+    licensing: state.context.licensing,
+    label: state.context.licensingLabel
+  }))).toEqual({
+    licensing: 'm365_core',
+    label: 'Business Premium / E3'
+  });
+
+  const invalidPayload = validImportedSession();
+  invalidPayload.context.licensing = 'not-a-license';
+  await importTestSession(page, invalidPayload);
+  await expect(page.locator('#testStatus')).toContainText('context.licensing is invalid');
+});
+
+test('migrates legacy DLP label selection and validates review focus targets', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const legacyPayload = validImportedSession();
+  legacyPayload.dlpState = { selectedLabelKey: 'public' };
+
+  await importTestSession(page, legacyPayload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  expect(await page.evaluate(() => state.dlp.selectedLabels)).toEqual(['public']);
+  const migrated = await page.evaluate(imported => {
+    return validateAndSanitizeImportedSession(imported).dlpState.selectedLabels;
+  }, legacyPayload);
+  expect(migrated).toEqual(['public']);
+
+  const invalidTarget = validImportedSession();
+  invalidTarget.dlpState = { reviewFocusTarget: '"] invalid selector' };
+  await importTestSession(page, invalidTarget);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.reviewFocusTarget is invalid');
+});
+
+test('normalizes saved DLP snapshots for report and CSV consumers', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpEnabled = false;
+  payload.sessionLog[0].dlpSummary = {
+    policyName: 'Imported policy',
+    labelName: 'Public',
+    locations: ['Exchange Online'],
+    actions: 'Audit only',
+    sitSummary: ['Example SIT'],
+    limitations: []
+  };
+  payload.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      conditions: {
+        sits: [{ label: 'Example SIT' }]
+      }
+    }
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  const normalized = await page.evaluate(() => {
+    const entry = state.sessionLog[0];
+    const report = buildLabelReportHtml(false);
+    exportCSV();
+    return {
+      dlpEnabled: entry.dlpEnabled,
+      exemptGroups: entry.dlpConfig.policy.exceptions.exemptGroups,
+      confidence: entry.dlpConfig.policy.conditions.sits[0].confidence,
+      minCount: entry.dlpConfig.policy.conditions.sits[0].minCount,
+      reportIncludesPolicy: report.includes('Imported policy')
+    };
+  });
+  expect(normalized).toEqual({
+    dlpEnabled: true,
+    exemptGroups: [],
+    confidence: 'medium',
+    minCount: 1,
+    reportIncludesPolicy: true
+  });
+
+  const invalidConfidence = validImportedSession();
+  invalidConfidence.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      conditions: {
+        sits: [{ label: 'Example SIT', confidence: 'impossible' }]
+      }
+    }
+  };
+  await importTestSession(page, invalidConfidence);
+  await expect(page.locator('#testStatus')).toContainText('confidence is invalid');
 });
 
 test('rejects malformed nested DLP state and saved DLP snapshots', async ({ page }) => {
@@ -289,6 +426,17 @@ test('rejects oversized imported session files', async ({ page }) => {
     buffer: Buffer.from(`{"version":2,"padding":"${'x'.repeat((1024 * 1024) + 1)}"}`)
   });
   await expect(page.locator('#testStatus')).toContainText('Import payload exceeds the 1 MB size limit');
+});
+
+test('keeps displayed and package versions synchronized with the changelog', async ({ page }) => {
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const packageLock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
+  expect(packageJson.version).toBe('2.0.1572');
+  expect(packageLock.version).toBe('2.0.1572');
+  expect(packageLock.packages[''].version).toBe('2.0.1572');
+
+  await page.goto('/');
+  await expect(page.locator('#versionBadge')).toHaveText('v2.0.1572');
 });
 
 function isBlockingViolation(violation) {
