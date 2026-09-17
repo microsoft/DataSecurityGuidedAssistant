@@ -640,6 +640,8 @@ async function openLabelingSetup(page) {
 }
 
 const TEST_PASSPHRASE = 'playwright-import-passphrase';
+const TEST_SALT = Buffer.from('playwright-import-salt');
+const encryptedSessionKeys = new Map();
 
 async function chooseImportFile(page) {
   const chooserPromise = page.waitForEvent('filechooser');
@@ -670,15 +672,18 @@ async function importTestSession(page, payload, passphrase = TEST_PASSPHRASE) {
 }
 
 function encryptedSession(plaintext, passphrase) {
-  const salt = randomBytes(16);
   const iv = randomBytes(12);
-  const key = pbkdf2Sync(passphrase, salt, 310000, 32, 'sha256');
+  let key = encryptedSessionKeys.get(passphrase);
+  if (!key) {
+    key = pbkdf2Sync(passphrase, TEST_SALT, 310000, 32, 'sha256');
+    encryptedSessionKeys.set(passphrase, key);
+  }
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final(), cipher.getAuthTag()]);
   return Buffer.from(JSON.stringify({
     v: 2,
     alg: 'AES-GCM-256 / PBKDF2-SHA-256 / 310000 iterations',
-    salt: salt.toString('base64'),
+    salt: TEST_SALT.toString('base64'),
     iv: iv.toString('base64'),
     data: ciphertext.toString('base64')
   }));

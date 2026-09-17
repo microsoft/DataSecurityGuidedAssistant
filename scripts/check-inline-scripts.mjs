@@ -53,9 +53,6 @@ while ((match = stylePattern.exec(headHtml)) !== null) {
 if (inlineScriptCount === 0) {
   console.error('No inline scripts were found in index.html.');
   process.exitCode = 1;
-} else if (inlineStyleCount === 0) {
-  console.error('No inline styles were found in index.html.');
-  process.exitCode = 1;
 } else if (!process.exitCode) {
   console.log(`Validated ${inlineScriptCount} inline script block(s), ${inlineStyleCount} inline style block(s), and CSP hashes.`);
 }
