@@ -2,11 +2,21 @@
 
 ## Status
 
-The repository restores development dependencies from the approved Microsoft package proxy:
+The repository requests development dependencies from the approved Microsoft package proxy:
 
 ```text
 https://packagefeedproxy.microsoft.io/npm/
 ```
+
+The proxy returns tarball URLs on its canonical Azure Artifacts host:
+
+```text
+https://ms-feed-25.pkgs.visualstudio.com/1es-public/_packaging/npm-public/npm/registry/
+```
+
+Accordingly, `package-lock.json` records this canonical host in its `resolved` entries; it is
+the expected redirect target for restores through the approved proxy and does not require a
+repository `.npmrc`.
 
 As of 2026-09-16, package metadata returned by this feed includes a SHA-1 `dist.shasum`
 but does not include a modern `dist.integrity` value. npm therefore records SHA-1 integrity
@@ -24,8 +34,9 @@ The following packages were sampled through the approved feed:
 | `@axe-core/playwright@4.13.0` | `dist.shasum` and approved-feed tarball URL; no `dist.integrity` |
 | `@playwright/test@1.63.0` | `dist.shasum` and approved-feed tarball URL; no `dist.integrity` |
 
-The lockfile uses version 3 and resolves packages through the approved Microsoft feed. A local
-`npm audit --audit-level=high` completed with no reported vulnerabilities at the review date.
+The lockfile uses version 3 and its `resolved` entries use the approved feed's canonical host.
+A local `npm audit --audit-level=high` completed with no reported vulnerabilities at the review
+date.
 
 ## Compensating controls
 
