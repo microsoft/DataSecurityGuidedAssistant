@@ -702,6 +702,30 @@ test('rejects unknown SIT keys in imported policy snapshots', async ({ page }) =
   await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.conditions.sits[0].key is invalid');
 });
 
+test('canonicalizes keyed SIT labels and rejects invalid minimum counts', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      conditions: {
+        sits: [{ key: 'all_full_names', label: 'Not sensitive', confidence: 'medium', minCount: 2 }]
+      }
+    }
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  expect(await page.evaluate(() => state.sessionLog[0].dlpConfig.policy.conditions.sits[0].label)).toBe('All Full Names');
+
+  for (const invalidCount of [0, -1, 1.5]) {
+    const invalid = structuredClone(payload);
+    invalid.sessionLog[0].dlpConfig.policy.conditions.sits[0].minCount = invalidCount;
+    await importTestSession(page, invalid);
+    await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.conditions.sits[0].minCount is invalid');
+  }
+});
+
 test('rejects impossible imported session-log decision paths', async ({ page }) => {
   await page.goto('/?testMode=true');
   const payload = validImportedSession();

@@ -9613,13 +9613,18 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     function sanitizeImportedPolicySit(item, path) {
       assertImport(item && typeof item === 'object' && !Array.isArray(item), path + ' must be an object.');
       assertImport(typeof item.label === 'string', path + '.label must be a string.');
+      var trustedLabel = item.label;
       if (item.key !== undefined) {
         assertImport(typeof item.key === 'string' && hasOwn(getAllowedSitMap(), item.key), path + '.key is invalid.');
+        var trustedSit = getAllSitCatalogItems().find(function(catalogItem) { return catalogItem.key === item.key; });
+        assertImport(!!trustedSit, path + '.key is invalid.');
+        trustedLabel = trustedSit.label;
       }
       var confidence = item.confidence === undefined || item.confidence === null ? 'medium' : String(item.confidence).toLowerCase();
       assertImport(['low', 'medium', 'high'].indexOf(confidence) !== -1, path + '.confidence is invalid.');
-      if (item.minCount !== undefined) assertImport(typeof item.minCount === 'number' && Number.isFinite(item.minCount), path + '.minCount is invalid.');
+      if (item.minCount !== undefined) assertImport(Number.isInteger(item.minCount) && item.minCount > 0, path + '.minCount is invalid.');
       return Object.assign({}, cloneData(item), {
+        label: trustedLabel,
         confidence: confidence,
         minCount: item.minCount === undefined ? 1 : item.minCount
       });
