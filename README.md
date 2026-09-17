@@ -25,7 +25,8 @@ then keeps every recommendation aligned to it so you can:
 - Produce shareable output you can export, print, or hand to stakeholders.
 
 Everything runs **client side in your browser**. No data you enter is sent to a
-server by the tool itself. The app does not load analytics or other third-party scripts.
+server by the tool itself. Optional Microsoft Clarity analytics load only after explicit
+consent, with customer-specific workflow regions masked and advertising storage disabled.
 
 ## Key features
 
