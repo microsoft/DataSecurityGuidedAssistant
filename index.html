@@ -6658,9 +6658,9 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     }
 
     function getSitCatalogMap() {
-      var map = {};
+      var map = Object.create(null);
       getAllSitCatalogItems().forEach(function(item) {
-        if (!map[item.key]) map[item.key] = item;
+        if (!hasOwn(map, item.key)) map[item.key] = item;
       });
       return map;
     }
@@ -6682,8 +6682,9 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
 
     function getSelectedPostureSitKeys(posture) {
       posture = posture || state.dlp.posture || {};
+      var sitMap = getSitCatalogMap();
       var selected = (posture.selectedSits || []).filter(function(key, index, arr) {
-        return !!getSitCatalogMap()[key] && arr.indexOf(key) === index;
+        return hasOwn(sitMap, key) && arr.indexOf(key) === index;
       });
       if (selected.length) return selected;
       selected = getSitKeysForFamilies(posture.sitFamilies || state.context.dataTypes || []);
@@ -6699,7 +6700,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       var tier = getLabelSensitivityTier(labelKey);
       var sitMap = getSitCatalogMap();
       var selected = (selectedSitKeys || []).filter(function(key, index, arr) {
-        return !!sitMap[key] && arr.indexOf(key) === index;
+        return hasOwn(sitMap, key) && arr.indexOf(key) === index;
       });
       if (!selected.length) selected = ['all_full_names'];
       if (tier === 'low') return [];
@@ -9364,7 +9365,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     var IMPORT_LIMITS = {
       fileBytes: 2 * 1024 * 1024,
       payloadCharacters: 1024 * 1024,
-      arrayItems: 200,
+      arrayItems: 5000,
       stringCharacters: 4000,
       objectProperties: 100,
       depth: 12
@@ -9438,6 +9439,10 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
 
     function getAllowedLicenseMap() {
       return arrayValuesToOwnMap((model.dlp.licensingOptions || []).map(function(option) { return option.key; }));
+    }
+
+    function getAllowedSitMap() {
+      return arrayValuesToOwnMap(getAllSitCatalogItems().map(function(item) { return item.key; }));
     }
 
     function validateConfigShape(value, template, path) {
@@ -9665,6 +9670,11 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         });
       }
       if (ctx.labelDeployment !== undefined) validateConfigShape(ctx.labelDeployment, getDefaultLabelDeployment(), path + '.labelDeployment');
+      if (ctx.labelDeployment !== undefined) {
+        Object.keys(ctx.labelDeployment).forEach(function(key) {
+          assertImport(hasOwn(labelDeploymentLabels[key], ctx.labelDeployment[key]), path + '.labelDeployment.' + key + ' is invalid.');
+        });
+      }
       if (ctx.currentPosture !== undefined) validateConfigShape(ctx.currentPosture, { existingDlp: null, labelsDeployed: null, conditionalAccess: null }, path + '.currentPosture');
       var sanitized = cloneData(ctx);
       sanitized.industryLabel = sanitized.industry ? industryDisplayLabels[sanitized.industry] : null;
@@ -9708,7 +9718,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         if (item.actions !== undefined) validateConfigShape(item.actions, getEmptyDlpConfig().actions, itemPath + '.actions');
         if (item.sitConfig !== undefined) {
           assertKnownProperties(item.sitConfig, Object.keys(getEmptyDlpConfig().sitConfig), itemPath + '.sitConfig');
-          if (item.sitConfig.selectedSits !== undefined) assertStringArray(item.sitConfig.selectedSits, itemPath + '.sitConfig.selectedSits');
+          if (item.sitConfig.selectedSits !== undefined) assertAllowedStrings(item.sitConfig.selectedSits, getAllowedSitMap(), itemPath + '.sitConfig.selectedSits');
           ['customSitType', 'confidence', 'logic'].forEach(function(key) {
             if (item.sitConfig[key] !== undefined) assertImport(typeof item.sitConfig[key] === 'string', itemPath + '.sitConfig.' + key + ' has an invalid type.');
           });
@@ -9774,6 +9784,9 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         validateConfigShape(dlpState.posture, getEmptyDlpState().posture, 'dlpState.posture');
         if (dlpState.posture.sitFamilies !== undefined) {
           assertAllowedStrings(dlpState.posture.sitFamilies, model.dlp.sitCatalog, 'dlpState.posture.sitFamilies');
+        }
+        if (dlpState.posture.selectedSits !== undefined) {
+          assertAllowedStrings(dlpState.posture.selectedSits, getAllowedSitMap(), 'dlpState.posture.selectedSits');
         }
         sanitized.posture = rebuildConfigShape(dlpState.posture, getEmptyDlpState().posture);
       }
@@ -10304,7 +10317,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       }
       var csv = rows.map(function(row) {
         return row.map(function(cell) {
-          var s = String(cell == null ? '' : cell).replace(/"/g, '""');
+          var s = sanitizeCsvCell(cell).replace(/"/g, '""');
           return /[",\r\n]/.test(s) ? '"' + s + '"' : s;
         }).join(',');
       }).join('\r\n');
@@ -10312,6 +10325,11 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       sha256Hex(csv).then(function(hash) {
         downloadFile(filename, csv + '\r\nSHA-256 Integrity Hash,' + hash, 'text/csv;charset=utf-8;');
       });
+    }
+
+    function sanitizeCsvCell(cell) {
+      var value = String(cell == null ? '' : cell);
+      return /^[=+\-@\t\r]/.test(value) ? "'" + value : value;
     }
 
     function setupContextPanel() {

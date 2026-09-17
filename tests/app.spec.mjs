@@ -357,6 +357,74 @@ test('normalizes saved DLP snapshots for report and CSV consumers', async ({ pag
   await expect(page.locator('#testStatus')).toContainText('confidence is invalid');
 });
 
+test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
+  await page.goto('/?testMode=true');
+
+  const labelConfigSit = validImportedSession();
+  labelConfigSit.dlpState = {
+    labelConfigs: {
+      public: {
+        sitConfig: { selectedSits: ['constructor'] }
+      }
+    }
+  };
+  await importTestSession(page, labelConfigSit);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.labelConfigs.public.sitConfig.selectedSits contains an unknown value');
+
+  const postureSit = validImportedSession();
+  postureSit.dlpState = {
+    posture: {
+      enforcement: '',
+      sitFamilies: [],
+      selectedSits: ['constructor'],
+      strictnessOverride: ''
+    }
+  };
+  await importTestSession(page, postureSit);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.posture.selectedSits contains an unknown value');
+
+  const deployment = validImportedSession();
+  deployment.context.labelDeployment.rollout = 'constructor';
+  await importTestSession(page, deployment);
+  await expect(page.locator('#testStatus')).toContainText('context.labelDeployment.rollout is invalid');
+
+  expect(await page.evaluate(() => ({
+    posture: getSelectedPostureSitKeys({ selectedSits: ['constructor'], sitFamilies: [] }),
+    tier: getTierAwareSitKeys('confidential_all', ['constructor'])
+  }))).toEqual({
+    posture: ['all_full_names'],
+    tier: ['all_full_names']
+  });
+});
+
+test('accepts tool-sized arrays within the bounded import payload', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(payload => {
+    payload.sessionLog = Array.from({ length: 201 }, () => structuredClone(payload.sessionLog[0]));
+    return validateAndSanitizeImportedSession(payload).sessionLog.length;
+  }, validImportedSession());
+  expect(result).toBe(201);
+});
+
+test('neutralizes spreadsheet formulas in CSV cells', async ({ page }) => {
+  await page.goto('/');
+  expect(await page.evaluate(() => [
+    sanitizeCsvCell('=cmd|calc'),
+    sanitizeCsvCell('+SUM(1,1)'),
+    sanitizeCsvCell('-1+1'),
+    sanitizeCsvCell('@malicious'),
+    sanitizeCsvCell('\tformula'),
+    sanitizeCsvCell('safe text')
+  ])).toEqual([
+    "'=cmd|calc",
+    "'+SUM(1,1)",
+    "'-1+1",
+    "'@malicious",
+    "'\tformula",
+    'safe text'
+  ]);
+});
+
 test('rejects malformed nested DLP state and saved DLP snapshots', async ({ page }) => {
   await page.goto('/?testMode=true');
 
