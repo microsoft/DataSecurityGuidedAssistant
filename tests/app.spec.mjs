@@ -1,10 +1,18 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { createCipheriv, pbkdf2Sync, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('guidedLabelingAnalyticsConsent', 'denied');
+    window.__cspViolations = [];
+    document.addEventListener('securitypolicyviolation', event => {
+      window.__cspViolations.push({
+        blockedURI: event.blockedURI,
+        directive: event.effectiveDirective
+      });
+    });
   });
 });
 
@@ -32,6 +40,7 @@ test('completes a representative labeling workflow without browser errors', asyn
 
   await expect(page.locator('#question')).toContainText('Decision flow complete.');
   await expect(page.locator('#result .label-badge')).toContainText('Public');
+  expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
   expect(browserErrors).toEqual([]);
 });
 
@@ -60,7 +69,6 @@ test('has no serious or critical accessibility violations in the primary flow', 
 });
 
 test('imports trusted session keys without rendering imported markup or handlers', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.context.industryLabel = '<img id="industry-payload" src=x onerror="window.__importPwned=1">';
   payload.labelingState.rationale = '<svg id="rationale-payload" onload="window.__importPwned=1"></svg>';
@@ -69,16 +77,20 @@ test('imports trusted session keys without rendering imported markup or handlers
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
-  await expect(page.locator('#filterChipRow')).toContainText('Education + 8-tier implementation model');
   await expect(page.locator('#result .label-badge')).toContainText('Public');
   await expect(page.locator('#result .result-summary')).toContainText('The content is approved for unrestricted external use.');
+  expect(await page.evaluate(() => ({
+    labelName: state.sessionLog[0].labelName,
+    rationale: state.sessionLog[0].rationale
+  }))).toEqual({
+    labelName: 'Public',
+    rationale: 'The content is approved for unrestricted external use.'
+  });
   await expect(page.locator('#industry-payload, #rationale-payload, #label-payload, #handler-payload')).toHaveCount(0);
   expect(await page.evaluate(() => window.__importPwned === 1)).toBe(false);
 });
 
 test('uses the imported decision path when rebuilding duplicate-label rationale', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   const generalHistory = [
     { questionId: 'q1', question: 'untrusted', answer: 'NO' },
@@ -93,7 +105,7 @@ test('uses the imported decision path when rebuilding duplicate-label rationale'
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   await expect(page.locator('#result .result-summary')).toContainText('Without named people or non-public business data, the content stays at General.');
   await expect(page.locator('#result .result-summary')).not.toContainText('low-risk internal business information');
   expect(await page.evaluate(() => ({
@@ -106,51 +118,55 @@ test('uses the imported decision path when rebuilding duplicate-label rationale'
 });
 
 test('rejects imported sessions with unknown fields or unsupported versions', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const unknownFieldPayload = validImportedSession();
   unknownFieldPayload.unexpected = 'not allowed';
   await importTestSession(page, unknownFieldPayload);
-  await expect(page.locator('#testStatus')).toContainText('unknown property "unexpected"');
+  await expect(page.locator('#appAlertMessage')).toContainText('unknown property "unexpected"');
+  await page.locator('#appAlertOkButton').click();
 
   const unsupportedPayload = validImportedSession();
   unsupportedPayload.version = 99;
   await importTestSession(page, unsupportedPayload);
-  await expect(page.locator('#testStatus')).toContainText('Unsupported session file version: 99');
+  await expect(page.locator('#appAlertMessage')).toContainText('Unsupported session file version: 99');
 });
 
 test('rejects inherited label and question property names', async ({ page }) => {
-  await page.goto('/?testMode=true');
-
   const inheritedLabel = validImportedSession();
   inheritedLabel.labelingState.resultKey = 'constructor';
   await importTestSession(page, inheritedLabel);
-  await expect(page.locator('#testStatus')).toContainText('labelingState.resultKey is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('labelingState.resultKey is invalid');
+  await page.locator('#appAlertOkButton').click();
 
   const inheritedEntryLabel = validImportedSession();
   inheritedEntryLabel.sessionLog[0].labelKey = 'toString';
   await importTestSession(page, inheritedEntryLabel);
-  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].labelKey is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('sessionLog[0].labelKey is invalid');
+  await page.locator('#appAlertOkButton').click();
 
   const inheritedQuestion = validImportedSession();
   inheritedQuestion.labelingState.currentQuestionId = 'constructor';
   inheritedQuestion.labelingState.resultKey = null;
   await importTestSession(page, inheritedQuestion);
-  await expect(page.locator('#testStatus')).toContainText('labelingState.currentQuestionId is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('labelingState.currentQuestionId is invalid');
+  await page.locator('#appAlertOkButton').click();
 
   const inheritedDlpLabel = validImportedSession();
   inheritedDlpLabel.dlpState = { selectedLabels: ['constructor'] };
   await importTestSession(page, inheritedDlpLabel);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.selectedLabels contains an unknown label key');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.selectedLabels contains an unknown label key');
+  await page.locator('#appAlertOkButton').click();
 
   const inheritedDataType = validImportedSession();
   inheritedDataType.context.dataTypes = ['constructor'];
   await importTestSession(page, inheritedDataType);
-  await expect(page.locator('#testStatus')).toContainText('context.dataTypes contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('context.dataTypes contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   const inheritedGeography = validImportedSession();
   inheritedGeography.context.orgProfile = { geography: ['constructor'] };
   await importTestSession(page, inheritedGeography);
-  await expect(page.locator('#testStatus')).toContainText('context.orgProfile.geography contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('context.orgProfile.geography contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   const inheritedSitFamily = validImportedSession();
   inheritedSitFamily.dlpState = {
@@ -162,7 +178,8 @@ test('rejects inherited label and question property names', async ({ page }) => 
     }
   };
   await importTestSession(page, inheritedSitFamily);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.posture.sitFamilies contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.posture.sitFamilies contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   expect(await page.evaluate(() => ({
     countries: getCountryFilterOptionsForGeographies(['constructor']),
@@ -193,7 +210,6 @@ test('round-trips the emitted encrypted envelope and algorithm', async ({ page }
 });
 
 test('imports combined flow context with exported geography arrays', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.selectedToolFlow = 'both';
   payload.context.orgProfile = {
@@ -206,7 +222,7 @@ test('imports combined flow context with exported geography arrays', async ({ pa
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   const imported = await page.evaluate(() => ({
     selectedToolFlow: state.selectedToolFlow,
     geography: state.context.orgProfile.geography
@@ -218,7 +234,6 @@ test('imports combined flow context with exported geography arrays', async ({ pa
 });
 
 test('validates 4-tier DLP labels against the imported model', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.context.labelModel = '4tier';
   payload.sessionLog[0].labelModel = '4tier';
@@ -271,7 +286,7 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   const dlpState = await page.evaluate(() => ({
     selectedLabels: state.dlp.selectedLabels,
     configuredLabels: state.dlp.configuredLabels,
@@ -287,7 +302,6 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
 });
 
 test('normalizes license aliases and rejects unknown licenses', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const aliasPayload = validImportedSession();
   aliasPayload.context.licensing = 'e3';
   aliasPayload.context.licensingLabel = 'untrusted';
@@ -295,7 +309,7 @@ test('normalizes license aliases and rejects unknown licenses', async ({ page })
   aliasPayload.sessionLog[0].contextSnapshot.licensingLabel = 'untrusted';
 
   await importTestSession(page, aliasPayload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   expect(await page.evaluate(() => ({
     licensing: state.context.licensing,
     label: state.context.licensingLabel
@@ -304,33 +318,33 @@ test('normalizes license aliases and rejects unknown licenses', async ({ page })
     label: 'Business Premium / E3'
   });
 
+  await page.goto('/');
   const invalidPayload = validImportedSession();
   invalidPayload.context.licensing = 'not-a-license';
   await importTestSession(page, invalidPayload);
-  await expect(page.locator('#testStatus')).toContainText('context.licensing is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('context.licensing is invalid');
 });
 
 test('migrates legacy DLP label selection and validates review focus targets', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const legacyPayload = validImportedSession();
   legacyPayload.dlpState = { selectedLabelKey: 'public' };
 
   await importTestSession(page, legacyPayload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   expect(await page.evaluate(() => state.dlp.selectedLabels)).toEqual(['public']);
   const migrated = await page.evaluate(imported => {
     return validateAndSanitizeImportedSession(imported).dlpState.selectedLabels;
   }, legacyPayload);
   expect(migrated).toEqual(['public']);
 
+  await page.goto('/');
   const invalidTarget = validImportedSession();
   invalidTarget.dlpState = { reviewFocusTarget: '"] invalid selector' };
   await importTestSession(page, invalidTarget);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.reviewFocusTarget is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.reviewFocusTarget is invalid');
 });
 
 test('normalizes saved DLP snapshots for report and CSV consumers', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.sessionLog[0].dlpEnabled = false;
   payload.sessionLog[0].dlpSummary = {
@@ -351,7 +365,7 @@ test('normalizes saved DLP snapshots for report and CSV consumers', async ({ pag
   };
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   const normalized = await page.evaluate(() => {
     const entry = state.sessionLog[0];
     const report = buildLabelReportHtml(false);
@@ -372,6 +386,7 @@ test('normalizes saved DLP snapshots for report and CSV consumers', async ({ pag
     reportIncludesPolicy: true
   });
 
+  await page.goto('/');
   const invalidConfidence = validImportedSession();
   invalidConfidence.sessionLog[0].dlpConfig = {
     version: 3,
@@ -382,12 +397,10 @@ test('normalizes saved DLP snapshots for report and CSV consumers', async ({ pag
     }
   };
   await importTestSession(page, invalidConfidence);
-  await expect(page.locator('#testStatus')).toContainText('confidence is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('confidence is invalid');
 });
 
 test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
-  await page.goto('/?testMode=true');
-
   const labelConfigSit = validImportedSession();
   labelConfigSit.dlpState = {
     labelConfigs: {
@@ -397,7 +410,8 @@ test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
     }
   };
   await importTestSession(page, labelConfigSit);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.labelConfigs.public.sitConfig.selectedSits contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.labelConfigs.public.sitConfig.selectedSits contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   const postureSit = validImportedSession();
   postureSit.dlpState = {
@@ -409,7 +423,8 @@ test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
     }
   };
   await importTestSession(page, postureSit);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.posture.selectedSits contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.posture.selectedSits contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   const scopeLocation = validImportedSession();
   scopeLocation.dlpState = {
@@ -418,7 +433,8 @@ test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
     }
   };
   await importTestSession(page, scopeLocation);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   const sharedSitConfig = validImportedSession();
   sharedSitConfig.dlpState = {
@@ -427,12 +443,14 @@ test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
     }
   };
   await importTestSession(page, sharedSitConfig);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.config.sitConfig.selectedSits contains an unknown value');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.config.sitConfig.selectedSits contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
 
   const deployment = validImportedSession();
   deployment.context.labelDeployment.rollout = 'constructor';
   await importTestSession(page, deployment);
-  await expect(page.locator('#testStatus')).toContainText('context.labelDeployment.rollout is invalid');
+  await expect(page.locator('#appAlertMessage')).toContainText('context.labelDeployment.rollout is invalid');
+  await page.locator('#appAlertOkButton').click();
 
   expect(await page.evaluate(() => ({
     posture: getSelectedPostureSitKeys({ selectedSits: ['constructor'], sitFamilies: [] }),
@@ -472,7 +490,6 @@ test('neutralizes spreadsheet formulas in CSV cells', async ({ page }) => {
 });
 
 test('neutralizes imported DLP formula values when exporting CSV', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.sessionLog[0].dlpSummary = {
     policyName: 'Imported policy',
@@ -491,7 +508,7 @@ test('neutralizes imported DLP formula values when exporting CSV', async ({ page
   }];
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   await page.evaluate(() => {
     window.__downloadedCsv = '';
     downloadFile = function(filename, content) { window.__downloadedCsv = content; };
@@ -507,26 +524,25 @@ test('neutralizes imported DLP formula values when exporting CSV', async ({ page
 });
 
 test('rejects malformed nested DLP state and saved DLP snapshots', async ({ page }) => {
-  await page.goto('/?testMode=true');
-
   const malformedPosture = validImportedSession();
   malformedPosture.dlpState = { posture: null };
   await importTestSession(page, malformedPosture);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.posture must be an object');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.posture must be an object');
+  await page.locator('#appAlertOkButton').click();
 
   const malformedSummary = validImportedSession();
   malformedSummary.sessionLog[0].dlpSummary = { locations: 'not-an-array' };
   await importTestSession(page, malformedSummary);
-  await expect(page.locator('#testStatus')).toContainText('dlpSummary.locations must be an array');
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpSummary.locations must be an array');
+  await page.locator('#appAlertOkButton').click();
 
   const malformedRollout = validImportedSession();
   malformedRollout.sessionLog[0].rolloutPlan = [null];
   await importTestSession(page, malformedRollout);
-  await expect(page.locator('#testStatus')).toContainText('rolloutPlan[0] must be an object');
+  await expect(page.locator('#appAlertMessage')).toContainText('rolloutPlan[0] must be an object');
 });
 
 test('sanitizes unfinished decision history and clears imported rationale', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.labelingState.currentQuestionId = 'q2';
   payload.labelingState.resultKey = null;
@@ -539,7 +555,7 @@ test('sanitizes unfinished decision history and clears imported rationale', asyn
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   const imported = await page.evaluate(() => ({
     currentQuestionId: state.currentQuestionId,
     question: state.history[0].question,
@@ -555,26 +571,48 @@ test('sanitizes unfinished decision history and clears imported rationale', asyn
 });
 
 test('rejects oversized imported session files', async ({ page }) => {
-  await page.goto('/?testMode=true');
-  let chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#testImportBtn').click();
-  let chooser = await chooserPromise;
+  await openLabelingSetup(page);
+  let chooser = await chooseImportFile(page);
   await chooser.setFiles({
     name: 'oversized-session.json',
     mimeType: 'application/json',
     buffer: Buffer.from(' '.repeat((2 * 1024 * 1024) + 1))
   });
-  await expect(page.locator('#testStatus')).toContainText('Import file exceeds the 2 MB size limit');
+  await expect(page.locator('#appAlertMessage')).toContainText('Import file exceeds the 2 MB size limit');
+  await page.locator('#appAlertOkButton').click();
 
-  chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#testImportBtn').click();
-  chooser = await chooserPromise;
+  chooser = await chooseImportFile(page);
   await chooser.setFiles({
     name: 'oversized-payload.json',
     mimeType: 'application/json',
-    buffer: Buffer.from(`{"version":2,"padding":"${'x'.repeat((1024 * 1024) + 1)}"}`)
+    buffer: encryptedSession(`{"version":2,"padding":"${'x'.repeat((1024 * 1024) + 1)}"}`, TEST_PASSPHRASE)
   });
-  await expect(page.locator('#testStatus')).toContainText('Import payload exceeds the 1 MB size limit');
+  await submitImportPassphrase(page);
+  await expect(page.locator('#appAlertMessage')).toContainText('Import payload exceeds the 1 MB size limit');
+});
+
+test('?testMode=true exposes no production test panel', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  await expect(page.locator('#testModePanel, #testImportBtn, #testStatus')).toHaveCount(0);
+});
+
+test('declined analytics and customer-entered values produce no third-party requests', async ({ page }) => {
+  const requests = [];
+  page.on('request', request => {
+    if (!request.url().startsWith('http://127.0.0.1:4173/')) {
+      requests.push({ url: request.url(), postData: request.postData() || '' });
+    }
+  });
+
+  await page.addInitScript(() => {
+    localStorage.setItem('guidedLabelingAnalyticsConsent', 'granted');
+  });
+  const customerValue = 'customer-secret-value@example.test';
+  await importTestSession(page, validImportedSession(), customerValue);
+
+  expect(requests).toEqual([]);
+  expect(JSON.stringify(requests)).not.toContain(customerValue);
+  expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
 });
 
 test('keeps displayed and package versions synchronized with the changelog', async ({ page }) => {
@@ -593,20 +631,57 @@ function isBlockingViolation(violation) {
 }
 
 async function openLabelingSetup(page) {
+  if (page.url() === 'about:blank') {
+    await page.goto('/');
+  }
   await page.getByRole('button', { name: 'Start Labeling tool' }).click();
   await expect(page.getByRole('dialog', { name: 'Before you start the Labeling tool' })).toBeVisible();
   await page.getByRole('button', { name: 'Continue to setup' }).click();
 }
 
-async function importTestSession(page, payload) {
+const TEST_PASSPHRASE = 'playwright-import-passphrase';
+
+async function chooseImportFile(page) {
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#testImportBtn').click();
-  const chooser = await chooserPromise;
+  await page.getByRole('button', { name: 'Resume labeling session' }).click();
+  return chooserPromise;
+}
+
+async function submitImportPassphrase(page, passphrase = TEST_PASSPHRASE) {
+  await expect(page.getByRole('alertdialog', { name: 'Decrypt import' })).toBeVisible();
+  await page.locator('#appAlertInput').fill(passphrase);
+  await page.getByRole('button', { name: 'Decrypt' }).click();
+}
+
+async function importTestSession(page, payload, passphrase = TEST_PASSPHRASE) {
+  if (page.url() === 'about:blank') {
+    await page.goto('/');
+  }
+  if (!await page.getByRole('button', { name: 'Resume labeling session' }).isVisible()) {
+    await openLabelingSetup(page);
+  }
+  const chooser = await chooseImportFile(page);
   await chooser.setFiles({
-    name: 'session.json',
+    name: 'session.enc.json',
     mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(payload))
+    buffer: encryptedSession(JSON.stringify(payload), passphrase)
   });
+  await submitImportPassphrase(page, passphrase);
+}
+
+function encryptedSession(plaintext, passphrase) {
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const key = pbkdf2Sync(passphrase, salt, 310000, 32, 'sha256');
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final(), cipher.getAuthTag()]);
+  return Buffer.from(JSON.stringify({
+    v: 2,
+    alg: 'AES-GCM-256 / PBKDF2-SHA-256 / 310000 iterations',
+    salt: salt.toString('base64'),
+    iv: iv.toString('base64'),
+    data: ciphertext.toString('base64')
+  }));
 }
 
 function validImportedSession() {

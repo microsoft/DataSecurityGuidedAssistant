@@ -25,8 +25,7 @@ then keeps every recommendation aligned to it so you can:
 - Produce shareable output you can export, print, or hand to stakeholders.
 
 Everything runs **client side in your browser**. No data you enter is sent to a
-server by the tool itself. Optional, anonymous usage analytics (Microsoft Clarity)
-only load if you explicitly consent.
+server by the tool itself. The app does not load analytics or other third-party scripts.
 
 ## Key features
 
