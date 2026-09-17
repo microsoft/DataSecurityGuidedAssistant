@@ -234,6 +234,7 @@ test('imports combined flow context with exported geography arrays', async ({ pa
 });
 
 test('validates 4-tier DLP labels against the imported model', async ({ page }) => {
+  await page.goto('/');
   const payload = validImportedSession();
   payload.context.labelModel = '4tier';
   payload.sessionLog[0].labelModel = '4tier';
@@ -584,7 +585,7 @@ test('derives rationale from the imported terminal decision path', async ({ page
   payload.labelingState.currentQuestionId = 'q2';
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   expect(await page.evaluate(() => ({
     currentQuestionId: state.currentQuestionId,
     rationale: state.rationale,
@@ -597,16 +598,16 @@ test('derives rationale from the imported terminal decision path', async ({ page
 });
 
 test('rejects unknown regulations and DLP location keys', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const contextRegulation = validImportedSession();
   contextRegulation.context.regulations = ['fake_regulation'];
   await importTestSession(page, contextRegulation);
-  await expect(page.locator('#testStatus')).toContainText('context.regulations contains an unknown value');
+  await expectImportError(page, 'context.regulations contains an unknown value');
 
   const entryRegulation = validImportedSession();
   entryRegulation.sessionLog[0].regulations = ['constructor'];
   await importTestSession(page, entryRegulation);
-  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].regulations contains an unknown value');
+  await expectImportError(page, 'sessionLog[0].regulations contains an unknown value');
 
   const location = validImportedSession();
   location.dlpState = {
@@ -617,12 +618,12 @@ test('rejects unknown regulations and DLP location keys', async ({ page }) => {
     }
   };
   await importTestSession(page, location);
-  await expect(page.locator('#testStatus')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+  await expectImportError(page, 'dlpState.config.targetScopes.locations contains an unknown value');
 
   const countryFilter = validImportedSession();
   countryFilter.context.regulationCountryFilter = 'constructor';
   await importTestSession(page, countryFilter);
-  await expect(page.locator('#testStatus')).toContainText('context.regulationCountryFilter is invalid');
+  await expectImportError(page, 'context.regulationCountryFilter is invalid');
 
   const snapshotLocation = validImportedSession();
   snapshotLocation.sessionLog[0].dlpConfig = {
@@ -632,11 +633,11 @@ test('rejects unknown regulations and DLP location keys', async ({ page }) => {
     }
   };
   await importTestSession(page, snapshotLocation);
-  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.locationKeys contains an unknown value');
+  await expectImportError(page, 'sessionLog[0].dlpConfig.policy.locationKeys contains an unknown value');
 });
 
 test('normalizes emitted label policy SITs for report consumers', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const payload = validImportedSession();
   payload.sessionLog[0].dlpSummary = {
     policyName: 'Label policy export',
@@ -659,7 +660,7 @@ test('normalizes emitted label policy SITs for report consumers', async ({ page 
   };
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   const result = await page.evaluate(() => {
     const sits = state.sessionLog[0].dlpConfig.policy.conditions.sits;
     return {
@@ -679,7 +680,7 @@ test('normalizes emitted label policy SITs for report consumers', async ({ page 
 });
 
 test('deduplicates validated SITs across imported label policies', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const payload = validImportedSession();
   const sit = { key: 'all_full_names', label: 'All Full Names', confidence: 'HIGH', minCount: 2 };
   payload.sessionLog[0].dlpConfig = {
@@ -693,7 +694,7 @@ test('deduplicates validated SITs across imported label policies', async ({ page
   };
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   expect(await page.evaluate(() => state.sessionLog[0].dlpConfig.policy.conditions.sits)).toEqual([{
     key: 'all_full_names',
     label: 'All Full Names',
@@ -703,7 +704,7 @@ test('deduplicates validated SITs across imported label policies', async ({ page
 });
 
 test('rejects unknown SIT keys in imported policy snapshots', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const payload = validImportedSession();
   payload.sessionLog[0].dlpConfig = {
     version: 3,
@@ -715,11 +716,11 @@ test('rejects unknown SIT keys in imported policy snapshots', async ({ page }) =
   };
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.conditions.sits[0].key is invalid');
+  await expectImportError(page, 'sessionLog[0].dlpConfig.policy.conditions.sits[0].key is invalid');
 });
 
 test('canonicalizes keyed SIT labels and rejects invalid minimum counts', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const payload = validImportedSession();
   payload.sessionLog[0].dlpConfig = {
     version: 3,
@@ -731,19 +732,20 @@ test('canonicalizes keyed SIT labels and rejects invalid minimum counts', async 
   };
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   expect(await page.evaluate(() => state.sessionLog[0].dlpConfig.policy.conditions.sits[0].label)).toBe('All Full Names');
 
   for (const invalidCount of [0, -1, 1.5]) {
+    await page.goto('/');
     const invalid = structuredClone(payload);
     invalid.sessionLog[0].dlpConfig.policy.conditions.sits[0].minCount = invalidCount;
     await importTestSession(page, invalid);
-    await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.conditions.sits[0].minCount is invalid');
+    await expectImportError(page, 'sessionLog[0].dlpConfig.policy.conditions.sits[0].minCount is invalid');
   }
 });
 
 test('rejects impossible imported session-log decision paths', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const payload = validImportedSession();
   payload.sessionLog[0].history = [
     { questionId: 'q1', question: 'untrusted', answer: 'NO' },
@@ -752,11 +754,11 @@ test('rejects impossible imported session-log decision paths', async ({ page }) 
   payload.sessionLog[0].labelKey = 'general';
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].history[1].questionId does not follow the decision path');
+  await expectImportError(page, 'sessionLog[0].history[1].questionId does not follow the decision path');
 });
 
 test('derives unfinished current question from validated history', async ({ page }) => {
-  await page.goto('/?testMode=true');
+  await page.goto('/');
   const payload = validImportedSession();
   payload.labelingState = {
     currentQuestionId: 'q3',
@@ -766,7 +768,7 @@ test('derives unfinished current question from validated history', async ({ page
   };
 
   await importTestSession(page, payload);
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
   expect(await page.evaluate(() => state.currentQuestionId)).toBe('q2');
 });
 
@@ -853,6 +855,11 @@ async function submitImportPassphrase(page, passphrase = TEST_PASSPHRASE) {
   await expect(page.getByRole('alertdialog', { name: 'Decrypt import' })).toBeVisible();
   await page.locator('#appAlertInput').fill(passphrase);
   await page.getByRole('button', { name: 'Decrypt' }).click();
+}
+
+async function expectImportError(page, message) {
+  await expect(page.locator('#appAlertMessage')).toContainText(message);
+  await page.locator('#appAlertOkButton').click();
 }
 
 async function importTestSession(page, payload, passphrase = TEST_PASSPHRASE) {
