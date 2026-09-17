@@ -21,10 +21,10 @@ const rootPackage = lockfile.packages?.[''];
 if (!rootPackage) {
   failures.push('package-lock.json is missing its root package entry.');
 } else {
-  const manifestDependencies = JSON.stringify(packageJson.dependencies ?? {});
-  const lockedDependencies = JSON.stringify(rootPackage.dependencies ?? {});
-  const manifestDevDependencies = JSON.stringify(packageJson.devDependencies ?? {});
-  const lockedDevDependencies = JSON.stringify(rootPackage.devDependencies ?? {});
+  const manifestDependencies = JSON.stringify(Object.entries(packageJson.dependencies ?? {}).sort());
+  const lockedDependencies = JSON.stringify(Object.entries(rootPackage.dependencies ?? {}).sort());
+  const manifestDevDependencies = JSON.stringify(Object.entries(packageJson.devDependencies ?? {}).sort());
+  const lockedDevDependencies = JSON.stringify(Object.entries(rootPackage.devDependencies ?? {}).sort());
 
   if (manifestDependencies !== lockedDependencies) {
     failures.push('package.json dependencies do not match the package-lock.json root entry.');
@@ -43,9 +43,10 @@ for (const [path, entry] of Object.entries(lockfile.packages ?? {})) {
   if (!entry.resolved) {
     failures.push(`${path} has no resolved package URL.`);
   } else {
-    resolvedCount += 1;
     if (!entry.resolved.startsWith(approvedRegistryPrefix)) {
       failures.push(`${path} resolves from an unapproved registry: ${entry.resolved}`);
+    } else {
+      resolvedCount += 1;
     }
   }
 
