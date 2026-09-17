@@ -383,6 +383,24 @@ test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
   await importTestSession(page, postureSit);
   await expect(page.locator('#testStatus')).toContainText('dlpState.posture.selectedSits contains an unknown value');
 
+  const scopeLocation = validImportedSession();
+  scopeLocation.dlpState = {
+    config: {
+      targetScopes: { locations: ['constructor'] }
+    }
+  };
+  await importTestSession(page, scopeLocation);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+
+  const sharedSitConfig = validImportedSession();
+  sharedSitConfig.dlpState = {
+    config: {
+      sitConfig: { selectedSits: ['constructor'] }
+    }
+  };
+  await importTestSession(page, sharedSitConfig);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.config.sitConfig.selectedSits contains an unknown value');
+
   const deployment = validImportedSession();
   deployment.context.labelDeployment.rollout = 'constructor';
   await importTestSession(page, deployment);
@@ -423,6 +441,41 @@ test('neutralizes spreadsheet formulas in CSV cells', async ({ page }) => {
     "'\tformula",
     'safe text'
   ]);
+});
+
+test('neutralizes imported DLP formula values when exporting CSV', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpSummary = {
+    policyName: 'Imported policy',
+    labelName: 'Public',
+    locations: ['Exchange Online'],
+    actions: '=HYPERLINK("https://example.test","open")',
+    sitSummary: ['Example SIT'],
+    overrides: '+Override',
+    limitations: ['@Limitation']
+  };
+  payload.sessionLog[0].rolloutPlan = [{
+    phase: '-Pilot',
+    start: '2026-10-01',
+    end: '2026-10-31',
+    criteria: []
+  }];
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  await page.evaluate(() => {
+    window.__downloadedCsv = '';
+    downloadFile = function(filename, content) { window.__downloadedCsv = content; };
+    sha256Hex = async function() { return 'testhash'; };
+    exportCSV();
+  });
+  await expect.poll(() => page.evaluate(() => window.__downloadedCsv)).toContain('SHA-256 Integrity Hash,testhash');
+  const csv = await page.evaluate(() => window.__downloadedCsv);
+  expect(csv).toContain('\'=HYPERLINK');
+  expect(csv).toContain('\'+Override');
+  expect(csv).toContain('\'-Pilot');
+  expect(csv).toContain('\'@Limitation');
 });
 
 test('rejects malformed nested DLP state and saved DLP snapshots', async ({ page }) => {
