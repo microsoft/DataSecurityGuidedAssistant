@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createCipheriv, pbkdf2Sync, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -89,6 +90,33 @@ test('imports trusted session keys without rendering imported markup or handlers
   expect(await page.evaluate(() => window.__importPwned === 1)).toBe(false);
 });
 
+test('uses the imported decision path when rebuilding duplicate-label rationale', async ({ page }) => {
+  const payload = validImportedSession();
+  const generalHistory = [
+    { questionId: 'q1', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q2', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q3', question: 'untrusted', answer: 'NO' }
+  ];
+  payload.labelingState.resultKey = 'general';
+  payload.labelingState.history = generalHistory;
+  payload.sessionLog[0].labelKey = 'general';
+  payload.sessionLog[0].history = generalHistory;
+  payload.visibleLabelKeys = ['general'];
+
+  await importTestSession(page, payload);
+
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  await expect(page.locator('#result .result-summary')).toContainText('Without named people or non-public business data, the content stays at General.');
+  await expect(page.locator('#result .result-summary')).not.toContainText('low-risk internal business information');
+  expect(await page.evaluate(() => ({
+    stateRationale: state.rationale,
+    savedRationale: state.sessionLog[0].rationale
+  }))).toEqual({
+    stateRationale: 'Without named people or non-public business data, the content stays at General.',
+    savedRationale: 'Without named people or non-public business data, the content stays at General.'
+  });
+});
+
 test('rejects imported sessions with unknown fields or unsupported versions', async ({ page }) => {
   const unknownFieldPayload = validImportedSession();
   unknownFieldPayload.unexpected = 'not allowed';
@@ -126,6 +154,37 @@ test('rejects inherited label and question property names', async ({ page }) => 
   inheritedDlpLabel.dlpState = { selectedLabels: ['constructor'] };
   await importTestSession(page, inheritedDlpLabel);
   await expect(page.locator('#appAlertMessage')).toContainText('dlpState.selectedLabels contains an unknown label key');
+  await page.locator('#appAlertOkButton').click();
+
+  const inheritedDataType = validImportedSession();
+  inheritedDataType.context.dataTypes = ['constructor'];
+  await importTestSession(page, inheritedDataType);
+  await expect(page.locator('#appAlertMessage')).toContainText('context.dataTypes contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  const inheritedGeography = validImportedSession();
+  inheritedGeography.context.orgProfile = { geography: ['constructor'] };
+  await importTestSession(page, inheritedGeography);
+  await expect(page.locator('#appAlertMessage')).toContainText('context.orgProfile.geography contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  const inheritedSitFamily = validImportedSession();
+  inheritedSitFamily.dlpState = {
+    posture: {
+      enforcement: '',
+      sitFamilies: ['constructor'],
+      selectedSits: [],
+      strictnessOverride: ''
+    }
+  };
+  await importTestSession(page, inheritedSitFamily);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.posture.sitFamilies contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  expect(await page.evaluate(() => ({
+    countries: getCountryFilterOptionsForGeographies(['constructor']),
+    sits: getSitKeysForFamilies(['constructor'])
+  }))).toEqual({ countries: [], sits: [] });
 });
 
 test('round-trips the emitted encrypted envelope and algorithm', async ({ page }) => {
@@ -154,7 +213,7 @@ test('imports combined flow context with exported geography arrays', async ({ pa
   const payload = validImportedSession();
   payload.selectedToolFlow = 'both';
   payload.context.orgProfile = {
-    geography: ['north_america', 'europe'],
+    geography: ['US', 'EU / EEA'],
     workforce: 'Hybrid',
     deviceModel: 'Mix',
     contractors: 'Yes'
@@ -170,7 +229,7 @@ test('imports combined flow context with exported geography arrays', async ({ pa
   }));
   expect(imported).toEqual({
     selectedToolFlow: 'both',
-    geography: ['north_america', 'europe']
+    geography: ['US', 'EU / EEA']
   });
 });
 
@@ -188,7 +247,7 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
     history: ['g1', 'g2'],
     posture: {
       enforcement: 'balanced',
-      sitFamilies: ['privacy'],
+      sitFamilies: ['personal_ids'],
       selectedSits: ['all_full_names'],
       strictnessOverride: ''
     },
@@ -215,6 +274,16 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
     derived: null
   };
 
+  const extracted = await page.evaluate(imported => {
+    const sanitized = validateAndSanitizeImportedSession(imported);
+    return extractLabelKeysFromImportedSession(sanitized);
+  }, payload);
+  expect(extracted).toEqual(expect.arrayContaining([
+    'confidential_all',
+    'confidential_specific',
+    'confidential_exception'
+  ]));
+
   await importTestSession(page, payload);
 
   await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
@@ -230,6 +299,228 @@ test('validates 4-tier DLP labels against the imported model', async ({ page }) 
     minCount: 2,
     derivedIsObject: true
   });
+});
+
+test('normalizes license aliases and rejects unknown licenses', async ({ page }) => {
+  const aliasPayload = validImportedSession();
+  aliasPayload.context.licensing = 'e3';
+  aliasPayload.context.licensingLabel = 'untrusted';
+  aliasPayload.sessionLog[0].contextSnapshot.licensing = 'e3';
+  aliasPayload.sessionLog[0].contextSnapshot.licensingLabel = 'untrusted';
+
+  await importTestSession(page, aliasPayload);
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  expect(await page.evaluate(() => ({
+    licensing: state.context.licensing,
+    label: state.context.licensingLabel
+  }))).toEqual({
+    licensing: 'm365_core',
+    label: 'Business Premium / E3'
+  });
+
+  await page.goto('/');
+  const invalidPayload = validImportedSession();
+  invalidPayload.context.licensing = 'not-a-license';
+  await importTestSession(page, invalidPayload);
+  await expect(page.locator('#appAlertMessage')).toContainText('context.licensing is invalid');
+});
+
+test('migrates legacy DLP label selection and validates review focus targets', async ({ page }) => {
+  const legacyPayload = validImportedSession();
+  legacyPayload.dlpState = { selectedLabelKey: 'public' };
+
+  await importTestSession(page, legacyPayload);
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  expect(await page.evaluate(() => state.dlp.selectedLabels)).toEqual(['public']);
+  const migrated = await page.evaluate(imported => {
+    return validateAndSanitizeImportedSession(imported).dlpState.selectedLabels;
+  }, legacyPayload);
+  expect(migrated).toEqual(['public']);
+
+  await page.goto('/');
+  const invalidTarget = validImportedSession();
+  invalidTarget.dlpState = { reviewFocusTarget: '"] invalid selector' };
+  await importTestSession(page, invalidTarget);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.reviewFocusTarget is invalid');
+});
+
+test('normalizes saved DLP snapshots for report and CSV consumers', async ({ page }) => {
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpEnabled = false;
+  payload.sessionLog[0].dlpSummary = {
+    policyName: 'Imported policy',
+    labelName: 'Public',
+    locations: ['Exchange Online'],
+    actions: 'Audit only',
+    sitSummary: ['Example SIT'],
+    limitations: []
+  };
+  payload.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      conditions: {
+        sits: [{ label: 'Example SIT' }]
+      }
+    }
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  const normalized = await page.evaluate(() => {
+    const entry = state.sessionLog[0];
+    const report = buildLabelReportHtml(false);
+    exportCSV();
+    return {
+      dlpEnabled: entry.dlpEnabled,
+      exemptGroups: entry.dlpConfig.policy.exceptions.exemptGroups,
+      confidence: entry.dlpConfig.policy.conditions.sits[0].confidence,
+      minCount: entry.dlpConfig.policy.conditions.sits[0].minCount,
+      reportIncludesPolicy: report.includes('Imported policy')
+    };
+  });
+  expect(normalized).toEqual({
+    dlpEnabled: true,
+    exemptGroups: [],
+    confidence: 'medium',
+    minCount: 1,
+    reportIncludesPolicy: true
+  });
+
+  await page.goto('/');
+  const invalidConfidence = validImportedSession();
+  invalidConfidence.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      conditions: {
+        sits: [{ label: 'Example SIT', confidence: 'impossible' }]
+      }
+    }
+  };
+  await importTestSession(page, invalidConfidence);
+  await expect(page.locator('#appAlertMessage')).toContainText('confidence is invalid');
+});
+
+test('rejects unknown imported SIT and deployment keys', async ({ page }) => {
+  const labelConfigSit = validImportedSession();
+  labelConfigSit.dlpState = {
+    labelConfigs: {
+      public: {
+        sitConfig: { selectedSits: ['constructor'] }
+      }
+    }
+  };
+  await importTestSession(page, labelConfigSit);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.labelConfigs.public.sitConfig.selectedSits contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  const postureSit = validImportedSession();
+  postureSit.dlpState = {
+    posture: {
+      enforcement: '',
+      sitFamilies: [],
+      selectedSits: ['constructor'],
+      strictnessOverride: ''
+    }
+  };
+  await importTestSession(page, postureSit);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.posture.selectedSits contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  const scopeLocation = validImportedSession();
+  scopeLocation.dlpState = {
+    config: {
+      targetScopes: { locations: ['constructor'] }
+    }
+  };
+  await importTestSession(page, scopeLocation);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  const sharedSitConfig = validImportedSession();
+  sharedSitConfig.dlpState = {
+    config: {
+      sitConfig: { selectedSits: ['constructor'] }
+    }
+  };
+  await importTestSession(page, sharedSitConfig);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.config.sitConfig.selectedSits contains an unknown value');
+  await page.locator('#appAlertOkButton').click();
+
+  const deployment = validImportedSession();
+  deployment.context.labelDeployment.rollout = 'constructor';
+  await importTestSession(page, deployment);
+  await expect(page.locator('#appAlertMessage')).toContainText('context.labelDeployment.rollout is invalid');
+  await page.locator('#appAlertOkButton').click();
+
+  expect(await page.evaluate(() => ({
+    posture: getSelectedPostureSitKeys({ selectedSits: ['constructor'], sitFamilies: [] }),
+    tier: getTierAwareSitKeys('confidential_all', ['constructor'])
+  }))).toEqual({
+    posture: ['all_full_names'],
+    tier: ['all_full_names']
+  });
+});
+
+test('accepts tool-sized arrays within the bounded import payload', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(payload => {
+    payload.sessionLog = Array.from({ length: 201 }, () => structuredClone(payload.sessionLog[0]));
+    return validateAndSanitizeImportedSession(payload).sessionLog.length;
+  }, validImportedSession());
+  expect(result).toBe(201);
+});
+
+test('neutralizes spreadsheet formulas in CSV cells', async ({ page }) => {
+  await page.goto('/');
+  expect(await page.evaluate(() => [
+    sanitizeCsvCell('=cmd|calc'),
+    sanitizeCsvCell('+SUM(1,1)'),
+    sanitizeCsvCell('-1+1'),
+    sanitizeCsvCell('@malicious'),
+    sanitizeCsvCell('\tformula'),
+    sanitizeCsvCell('safe text')
+  ])).toEqual([
+    "'=cmd|calc",
+    "'+SUM(1,1)",
+    "'-1+1",
+    "'@malicious",
+    "'\tformula",
+    'safe text'
+  ]);
+});
+
+test('neutralizes imported DLP formula values when exporting CSV', async ({ page }) => {
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpSummary = {
+    policyName: 'Imported policy',
+    labelName: 'Public',
+    locations: ['Exchange Online'],
+    actions: '=HYPERLINK("https://example.test","open")',
+    sitSummary: ['Example SIT'],
+    overrides: '+Override',
+    limitations: ['@Limitation']
+  };
+  payload.sessionLog[0].rolloutPlan = [{
+    phase: '-Pilot',
+    start: '2026-10-01',
+    end: '2026-10-31',
+    criteria: []
+  }];
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  await page.evaluate(() => {
+    window.__downloadedCsv = '';
+    downloadFile = function(filename, content) { window.__downloadedCsv = content; };
+    sha256Hex = async function() { return 'testhash'; };
+    exportCSV();
+  });
+  await expect.poll(() => page.evaluate(() => window.__downloadedCsv)).toContain('SHA-256 Integrity Hash,testhash');
+  const csv = await page.evaluate(() => window.__downloadedCsv);
+  expect(csv).toContain('\'=HYPERLINK');
+  expect(csv).toContain('\'+Override');
+  expect(csv).toContain('\'-Pilot');
+  expect(csv).toContain('\'@Limitation');
 });
 
 test('rejects malformed nested DLP state and saved DLP snapshots', async ({ page }) => {
@@ -322,6 +613,17 @@ test('declined analytics and customer-entered values produce no third-party requ
   expect(requests).toEqual([]);
   expect(JSON.stringify(requests)).not.toContain(customerValue);
   expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
+});
+
+test('keeps displayed and package versions synchronized with the changelog', async ({ page }) => {
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const packageLock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
+  expect(packageJson.version).toBe('2.0.1572');
+  expect(packageLock.version).toBe('2.0.1572');
+  expect(packageLock.packages[''].version).toBe('2.0.1572');
+
+  await page.goto('/');
+  await expect(page.locator('#versionBadge')).toHaveText('v2.0.1572');
 });
 
 function isBlockingViolation(violation) {
