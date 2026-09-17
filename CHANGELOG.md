@@ -6,6 +6,7 @@ Format: `## vX.Y.Z — YYYY-MM-DD` followed by bullet points.
 ## v2.0.1572 — 2026-09-16
 - Harden imported session and DLP data with strict versioned schemas, trusted model-key reconstruction, encrypted-envelope compatibility checks, bounded payloads, and safe DOM rendering.
 - Add browser regressions for injection payloads, inherited object properties, encrypted round trips, combined and 4-tier flows, exported geography arrays, malformed nested snapshots, and unfinished decision history.
+- Restore landing-page interactions after import-hardening changes invalidated the inline-script CSP hash, and move affected regression tests to the production import workflow.
 
 ## v2.0.1571 — 2026-06-24
 - Add Education and Non-Profit as new industry options across the industry selector, label recommendations, data-type checkboxes, exception guidance, and industry scenario examples.
