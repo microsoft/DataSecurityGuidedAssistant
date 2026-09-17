@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Language" content="en">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EysO+BG9L2SzG+lbSMFfHxgbmCEPastWXCPGx9GIKcI=' 'sha256-+5HvCWvlJjlx4+VtLnkC/n1iBvD8kBS6ANVIXP+pI5k='; script-src-attr 'none'; style-src-elem 'sha256-U2vjXvDb4HGM6cJSTUr5oI8yIKl/9x4X5an3/47lmko='; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EysO+BG9L2SzG+lbSMFfHxgbmCEPastWXCPGx9GIKcI=' 'sha256-eNtcaA1Iy1SvbDdyqZpCnWg/NrwLbsJJuTPSkLv8zjI=' https://www.clarity.ms; script-src-attr 'none'; style-src-elem 'sha256-2nt2hd0TBmrllGezBUhT0+7b2oeqs0kT6GyKecFf4cs='; style-src-attr 'unsafe-inline'; img-src 'self' data: blob: https://*.clarity.ms; font-src 'self'; connect-src https://*.clarity.ms; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'self'">
   <meta name="color-scheme" content="light dark">
   <title>Data Security Guided Assistant</title>
   <script>
@@ -516,6 +516,55 @@ html[data-theme="dark"] {
       margin-top: var(--space-4);
     }
 
+    .analytics-banner {
+      max-width: 1280px;
+      margin: 0 auto var(--space-4);
+      padding: var(--space-4) var(--space-6);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-4);
+      background: var(--required-badge-bg);
+      border: 2px solid var(--required-badge-border);
+      border-left: 6px solid var(--warning);
+      border-radius: var(--radius-card);
+      box-shadow: 0 18px 60px rgba(245, 158, 11, 0.24), var(--shadow);
+      color: var(--required-badge-text);
+      outline: 1px solid color-mix(in srgb, var(--cp-surface) 70%, transparent);
+      outline-offset: -5px;
+    }
+
+    .analytics-banner[hidden] {
+      display: none;
+    }
+
+    .analytics-banner-copy {
+      max-width: 780px;
+    }
+
+    .analytics-banner h2 {
+      margin-bottom: 6px;
+      font-size: 20px;
+      color: var(--text);
+    }
+
+    .analytics-banner .kicker {
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .analytics-banner p:last-child {
+      margin-bottom: 0;
+    }
+
+    .analytics-banner-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 240px;
+    }
 
     .tree-panel[hidden] {
       display: none;
@@ -2213,6 +2262,18 @@ html[data-theme="dark"] {
 <body>
   <a class="skip-link" href="#mainContent">Skip to main content</a>
   <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <section id="analyticsConsentBanner" class="analytics-banner" aria-labelledby="analyticsConsentHeading" aria-describedby="analyticsConsentDescription" tabindex="-1" hidden>
+    <div class="analytics-banner-copy">
+      <div class="kicker">Analytics consent</div>
+      <h2 id="analyticsConsentHeading">Optional usage analytics</h2>
+      <p id="analyticsConsentDescription">With your permission, this site can load Microsoft Clarity to collect usage analytics. Customer-specific workflow regions are masked before collection, and advertising storage remains disabled.</p>
+      <p class="subtle">Declining keeps the assistant fully functional and prevents Clarity from loading.</p>
+    </div>
+    <div class="analytics-banner-actions">
+      <button id="analyticsConsentDeclineButton" class="secondary" type="button">Decline</button>
+      <button id="analyticsConsentAcceptButton" class="primary" type="button">Accept analytics</button>
+    </div>
+  </section>
   <div id="decisionFlowIntro" class="intro-dialog-backdrop" hidden>
     <section class="intro-dialog" role="dialog" aria-modal="true" aria-labelledby="decisionFlowIntroHeading" aria-describedby="decisionFlowIntroDescription" tabindex="-1">
       <div class="kicker">First-use guide</div>
@@ -2251,6 +2312,7 @@ html[data-theme="dark"] {
       <!--<div class="fluent-note">Fluent 2-inspired interface</div>-->
       <div class="hero-actions">
         <button id="themeToggleButton" class="secondary" type="button" aria-label="Change color theme">Theme: Auto</button>
+        <button id="analyticsPreferencesButton" class="secondary" type="button" hidden>Analytics: Review consent</button>
       </div>
       <div class="disclaimer-banner">
         <strong>Disclaimer:</strong>
@@ -2299,7 +2361,7 @@ html[data-theme="dark"] {
     </section>
 
     <!-- Context-gathering panel: shown first, hidden after Start is clicked -->
-    <section id="contextPanel" class="panel context-panel" aria-labelledby="contextHeading" hidden>
+    <section id="contextPanel" class="panel context-panel" aria-labelledby="contextHeading" data-clarity-mask="true" hidden>
       <div class="kicker">Setup</div>
       <h2 id="contextHeading">Tell us about your context</h2>
       <p id="contextIntroText" class="subtle">Help us tailor the decision flow and reference guidance to your industry. Select your industry to enable the decision flow. For specific labeling questions, use the <strong>Start decision flow</strong> button below — the Reference, Exceptions, and Examples sections will dynamically update as you answer.</p>
@@ -2548,7 +2610,7 @@ html[data-theme="dark"] {
     </section>
 
     <!-- Main decision grid: hidden until context is locked -->
-    <div id="mainGrid" class="grid" hidden>
+    <div id="mainGrid" class="grid" data-clarity-mask="true" hidden>
       <section id="labelingPanel" class="panel labeling-panel" aria-labelledby="decisionFlowHeading">
         <div class="kicker">Decision flow</div>
         <h2 id="decisionFlowHeading">Start labeling</h2>
@@ -4174,6 +4236,10 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     const resultEl              = document.getElementById("result");
     const labelFlowProgressEl   = document.getElementById("labelFlowProgress");
     const themeToggleButtonEl   = document.getElementById("themeToggleButton");
+    const analyticsConsentBannerEl = document.getElementById("analyticsConsentBanner");
+    const analyticsConsentAcceptBtnEl = document.getElementById("analyticsConsentAcceptButton");
+    const analyticsConsentDeclineBtnEl = document.getElementById("analyticsConsentDeclineButton");
+    const analyticsPreferencesButtonEl = document.getElementById("analyticsPreferencesButton");
     const closeTreeButtonEl     = document.getElementById("closeTreeButton");
     const treePanelEl           = document.getElementById("treePanel");
     const treeDiagramEl         = document.getElementById("treeDiagram");
@@ -4223,6 +4289,11 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     var   restoreAllBtnEl       = null;
     var   editModeActive        = false;
     const themeMediaQuery       = window.matchMedia("(prefers-color-scheme: dark)");
+    const clarityConfig = {
+      projectId: "wnzt6akl3c",
+      storageKey: "guidedLabelingAnalyticsConsent"
+    };
+    let clarityLoaded = false;
 
     let themePreference = localStorage.getItem("labelTreeTheme") || "auto";
     const decisionFlowIntroStorageKey = "decisionFlowIntroAcknowledged";
@@ -4527,6 +4598,102 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         return;
       }
       if (!showDecisionFlowIntro()) lockContext();
+    }
+
+    function isClarityConfigured() {
+      return typeof clarityConfig.projectId === "string" && clarityConfig.projectId.trim().length > 0;
+    }
+
+    function getAnalyticsConsent() {
+      return localStorage.getItem(clarityConfig.storageKey);
+    }
+
+    function hideAnalyticsConsentBanner() {
+      if (analyticsConsentBannerEl) analyticsConsentBannerEl.hidden = true;
+    }
+
+    function showAnalyticsConsentBanner() {
+      if (!analyticsConsentBannerEl || !isClarityConfigured()) return;
+      analyticsConsentBannerEl.hidden = false;
+      announce('Analytics consent banner shown. Choose whether to allow optional usage analytics.');
+      window.setTimeout(function() {
+        analyticsConsentBannerEl.focus({ preventScroll: true });
+      }, 0);
+    }
+
+    function updateAnalyticsPreferencesButton() {
+      if (!analyticsPreferencesButtonEl) return;
+      if (!isClarityConfigured()) {
+        analyticsPreferencesButtonEl.hidden = true;
+        return;
+      }
+
+      analyticsPreferencesButtonEl.hidden = false;
+      const consent = getAnalyticsConsent();
+      const label = consent === "granted"
+        ? "Analytics: Allowed"
+        : consent === "denied"
+          ? "Analytics: Declined"
+          : "Analytics: Review consent";
+      analyticsPreferencesButtonEl.textContent = label;
+      analyticsPreferencesButtonEl.setAttribute("aria-label", label + ". Activate to review analytics consent.");
+    }
+
+    function sendClarityConsent(consent) {
+      if (typeof window.clarity !== "function") return;
+      window.clarity('consentv2', {
+        ad_Storage: "denied",
+        analytics_Storage: consent === "granted" ? "granted" : "denied"
+      });
+    }
+
+    function loadClarity() {
+      if (!isClarityConfigured() || clarityLoaded) return;
+      clarityLoaded = true;
+
+      (function(c, l, a, r, i, t, y) {
+        c[a] = c[a] || function() { (c[a].q = c[a].q || []).push(arguments); };
+        t = l.createElement(r);
+        t.async = 1;
+        t.src = "https://www.clarity.ms/tag/" + i;
+        y = l.getElementsByTagName(r)[0];
+        y.parentNode.insertBefore(t, y);
+      })(window, document, "clarity", "script", clarityConfig.projectId);
+      sendClarityConsent("granted");
+    }
+
+    function applyAnalyticsConsent(consent, shouldAnnounce) {
+      localStorage.setItem(clarityConfig.storageKey, consent);
+      hideAnalyticsConsentBanner();
+      updateAnalyticsPreferencesButton();
+
+      if (consent === "granted") {
+        loadClarity();
+      } else {
+        sendClarityConsent("denied");
+      }
+
+      if (shouldAnnounce) {
+        announce(consent === "granted" ? "Usage analytics enabled." : "Usage analytics declined.");
+      }
+    }
+
+    function initializeAnalyticsConsent() {
+      if (!isClarityConfigured()) {
+        hideAnalyticsConsentBanner();
+        updateAnalyticsPreferencesButton();
+        return;
+      }
+
+      const consent = getAnalyticsConsent();
+      updateAnalyticsPreferencesButton();
+      if (consent === "granted") {
+        loadClarity();
+      } else if (consent === "denied") {
+        hideAnalyticsConsentBanner();
+      } else {
+        showAnalyticsConsentBanner();
+      }
     }
 
     // ---- THEME ----
@@ -10497,6 +10664,9 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     });
 
     themeToggleButtonEl.addEventListener("click", cycleThemePreference);
+    if (analyticsConsentAcceptBtnEl) analyticsConsentAcceptBtnEl.addEventListener("click", function() { applyAnalyticsConsent("granted", true); });
+    if (analyticsConsentDeclineBtnEl) analyticsConsentDeclineBtnEl.addEventListener("click", function() { applyAnalyticsConsent("denied", true); });
+    if (analyticsPreferencesButtonEl) analyticsPreferencesButtonEl.addEventListener("click", showAnalyticsConsentBanner);
     if (appAlertOkButtonEl) appAlertOkButtonEl.addEventListener("click", function() {
       if (!activeAppDialog) { hideAppAlert(); return; }
       if (activeAppDialog.mode === 'prompt') {
@@ -10541,6 +10711,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
 
     // ---- INIT ----
     applyThemePreference(themePreference);
+    initializeAnalyticsConsent();
     setupContextPanel();
     buildExportBar();
     renderAll();

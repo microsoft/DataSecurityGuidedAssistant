@@ -806,14 +806,47 @@ test('declined analytics and customer-entered values produce no third-party requ
     }
   });
 
-  await page.addInitScript(() => {
-    localStorage.setItem('guidedLabelingAnalyticsConsent', 'granted');
-  });
   const customerValue = 'customer-secret-value@example.test';
-  await importTestSession(page, validImportedSession(), customerValue);
+  const payload = validImportedSession();
+  payload.context.orgProfile = {
+    geography: ['US'],
+    workforce: customerValue,
+    deviceModel: null,
+    contractors: null
+  };
+  await importTestSession(page, payload);
 
   expect(requests).toEqual([]);
   expect(JSON.stringify(requests)).not.toContain(customerValue);
+  expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
+});
+
+test('shows first-visit consent and loads masked Clarity only after acceptance', async ({ page }) => {
+  const clarityRequests = [];
+  await page.addInitScript(() => {
+    localStorage.removeItem('guidedLabelingAnalyticsConsent');
+  });
+  await page.route('https://*.clarity.ms/**', route => {
+    clarityRequests.push(route.request().url());
+    return route.abort();
+  });
+
+  await page.goto('/');
+  await expect(page.locator('#analyticsConsentBanner')).toBeVisible();
+  expect(clarityRequests).toEqual([]);
+
+  await page.locator('#analyticsConsentAcceptButton').click();
+  await expect(page.locator('#analyticsConsentBanner')).toBeHidden();
+  await expect(page.locator('#analyticsPreferencesButton')).toContainText('Analytics: Allowed');
+  await expect.poll(() => clarityRequests.length).toBeGreaterThan(0);
+  expect(clarityRequests.every(url => new URL(url).hostname.endsWith('.clarity.ms'))).toBe(true);
+  expect(await page.locator('#contextPanel').getAttribute('data-clarity-mask')).toBe('true');
+  expect(await page.locator('#mainGrid').getAttribute('data-clarity-mask')).toBe('true');
+  expect(await page.evaluate(() => window.clarity.q.some(entry =>
+    entry[0] === 'consentv2'
+      && entry[1].ad_Storage === 'denied'
+      && entry[1].analytics_Storage === 'granted'
+  ))).toBe(true);
   expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
 });
 
