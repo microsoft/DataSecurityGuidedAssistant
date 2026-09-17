@@ -112,7 +112,7 @@ html[data-theme="dark"] {
       --required-badge-border: color-mix(in srgb, var(--cp-warning) 55%, var(--cp-border) 45%);
       --required-badge-bg: color-mix(in srgb, var(--cp-warning) 18%, var(--cp-surface) 82%);
       --required-badge-text: var(--cp-text);
-      --suggested-badge-text: var(--cp-accent-hover);
+      --suggested-badge-text: #005a9e;
       --question-bg-odd: rgba(0, 120, 212, 0.045);
       --question-bg-even: transparent;
       --question-border-odd: color-mix(in srgb, var(--cp-border) 82%, var(--cp-accent) 18%);
@@ -144,6 +144,7 @@ html[data-theme="dark"] {
 
 
     :root[data-theme="dark"] {
+      --suggested-badge-text: #8bdcff;
       --question-bg-odd: var(--cp-accent-soft);
       --question-border-odd: color-mix(in srgb, var(--cp-border) 64%, var(--cp-accent) 36%);
     }
@@ -2269,7 +2270,7 @@ html[data-theme="dark"] {
 <body>
   <a class="skip-link" href="#mainContent">Skip to main content</a>
   <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-  <section id="analyticsConsentBanner" class="analytics-banner" role="region" aria-labelledby="analyticsConsentHeading" aria-describedby="analyticsConsentDescription" tabindex="-1" hidden>
+  <section id="analyticsConsentBanner" class="analytics-banner" aria-labelledby="analyticsConsentHeading" aria-describedby="analyticsConsentDescription" tabindex="-1" hidden>
     <div class="analytics-banner-copy">
       <div class="kicker">Analytics consent</div>
       <h2 id="analyticsConsentHeading">Optional usage analytics</h2>
@@ -2392,12 +2393,12 @@ html[data-theme="dark"] {
           <fieldset>
             <legend>Labeling model <span class="info-icon tooltip-wide" tabindex="0" role="img" aria-label="Labeling model details" data-tooltip="Controls how labels are presented. The 8-tier model is more implementation-specific; the 4-tier model keeps recommendations and DLP review focused on four business-friendly labels.">i</span> <span class="field-badge suggested">Suggested</span></legend>
             <div class="context-inline-checks">
-              <label class="checkbox-item" for="labelModel8Tier">
+              <label class="checkbox-item">
                 <input id="labelModel8Tier" type="radio" name="labelModelOption" value="8tier" checked>
                 8-tier implementation model
                 <span class="info-icon" tabindex="0" role="img" aria-label="8-tier model details" data-tooltip="8-tier implementation model&#10;Public&#10;General&#10;Confidential - All Employees&#10;Confidential - Specific People&#10;Confidential - Internal Exception&#10;Highly Confidential - All Employees&#10;Highly Confidential - Specific People&#10;Highly Confidential - Internal Exception">i</span>
               </label>
-              <label class="checkbox-item" for="labelModel4Tier">
+              <label class="checkbox-item">
                 <input id="labelModel4Tier" type="radio" name="labelModelOption" value="4tier">
                 4-tier simplified model
                 <span class="info-icon" tabindex="0" role="img" aria-label="4-tier model details" data-tooltip="4-tier simplified model&#10;Public&#10;General&#10;Confidential&#10;Highly Confidential&#10;&#10;DLP uses these four labels directly when this model is selected.">i</span>
@@ -2526,15 +2527,15 @@ html[data-theme="dark"] {
               <fieldset>
                 <legend>Add-ons &amp; readiness <span class="info-icon tooltip-wide" tabindex="0" role="img" aria-label="Add-ons and readiness details" data-tooltip="Optional capabilities that can change DLP recommendations, such as endpoint signals from Defender, automatic label application, or Microsoft 365 Copilot exposure planning.">i</span> <span class="field-badge suggested">Suggested</span></legend>
                 <div class="context-inline-checks">
-                  <label class="checkbox-item" for="addOnDefender">
+                  <label class="checkbox-item">
                     <input id="addOnDefender" type="checkbox">
                     <span>Defender for Endpoint onboarded?</span>
                   </label>
-                  <label class="checkbox-item" for="addOnAutoLabel">
+                  <label class="checkbox-item">
                     <input id="addOnAutoLabel" type="checkbox">
                     <span>Auto-labeling desired?</span>
                   </label>
-                  <label class="checkbox-item" for="addOnCopilot">
+                  <label class="checkbox-item">
                     <input id="addOnCopilot" type="checkbox">
                     <span>Microsoft 365 Copilot licensed or planned?<span id="copilotIncludedHint" class="subtle" style="display:block;font-size:12px;" hidden>Included with E7.</span></span>
                   </label>
@@ -2627,7 +2628,7 @@ html[data-theme="dark"] {
         </div>
 
         <div id="labelFlowProgress" class="label-flow-stepper" aria-live="polite"></div>
-        <div id="question" class="question-card" role="region" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
+        <div id="question" class="question-card" role="region" aria-label="Label decision question" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
         <div id="changeContextRow" class="change-context-row" hidden>
           <button id="changeContextBtn" class="change-context-btn" type="button" aria-label="Start over — clear all answers and return to context setup">Start over</button>
           <button id="returnToLandingFromFlowBtn" class="secondary" type="button">Back to tool selection</button>

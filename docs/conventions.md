@@ -10,9 +10,20 @@ Observed conventions. Derived from the current structure; update as it evolves.
 ## Authoring conventions
 - Static, dependency-free HTML/CSS/JS — no build tooling required.
 - Keep content self-contained; prefer inline or same-repo assets over external CDNs where practical.
-- Maintain accessibility and update `CHANGELOG.md` for user-facing changes.
+- Preserve accessible labels, heading structure, and keyboard navigation.
+- Avoid external runtime dependencies that require a build.
+- Keep pull requests small and single-purpose.
+- Update `CHANGELOG.md` for user-facing changes.
 - No secrets, tokens, tenant identifiers, or customer data in markup or scripts.
 
 ## Validation
-`pwsh scripts/verify.ps1` — confirms `index.html` exists, is non-empty, and contains basic HTML structure
-(`<html>...</html>` and `<body>...</body>` tags).
+Install the verification dependencies after cloning or when they change:
+
+```powershell
+npm ci
+npx playwright install chromium
+```
+
+Run `pwsh scripts/verify.ps1` to validate the HTML and inline JavaScript, exercise a
+representative labeling workflow in Chromium, and check the primary flow for serious or
+critical accessibility violations.

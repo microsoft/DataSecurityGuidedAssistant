@@ -17,14 +17,14 @@ See [`docs/conventions.md`](docs/conventions.md).
 
 ## Verification / Definition of Done
 ```powershell
+npm ci
+npx playwright install chromium
 pwsh scripts/verify.ps1
 ```
-`verify.ps1` confirms `index.html` exists, is non-empty, and contains a well-formed
-`<html>...</html>` document. A change is done when `verify.ps1` passes and the page renders
-correctly in a browser.
+Run the setup commands once after cloning or when dependencies change. `verify.ps1` validates
+the HTML and inline JavaScript, exercises a representative labeling workflow in Chromium, and
+checks the primary flow for serious or critical accessibility violations. A change is done when
+`verify.ps1` passes and the affected behavior has been reviewed in a browser.
 
 ## PR & work-item telemetry — required
 Every PR must follow [`.github/instructions/telemetry.instructions.md`](.github/instructions/telemetry.instructions.md).
-
-## Copilot
-See [`.github/copilot-instructions.md`](.github/copilot-instructions.md).

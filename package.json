@@ -1,0 +1,15 @@
+{
+  "name": "data-security-guided-assistant",
+  "version": "2.0.1571",
+  "private": true,
+  "scripts": {
+    "check:html": "html-validate index.html",
+    "check:scripts": "node scripts/check-inline-scripts.mjs",
+    "test:browser": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.55.0",
+    "html-validate": "^9.7.1"
+  }
+}
