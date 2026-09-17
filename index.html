@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Language" content="en">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EysO+BG9L2SzG+lbSMFfHxgbmCEPastWXCPGx9GIKcI=' 'sha256-LB2gAZRgc/KBecLKlUzEYvTRnBNpPQV/BxHBPxgurf0='; script-src-attr 'none'; style-src-elem 'sha256-U2vjXvDb4HGM6cJSTUr5oI8yIKl/9x4X5an3/47lmko='; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'self'">
   <meta name="color-scheme" content="light dark">
   <title>Data Security Guided Assistant</title>
   <script>
@@ -515,55 +516,6 @@ html[data-theme="dark"] {
       margin-top: var(--space-4);
     }
 
-    .analytics-banner {
-      max-width: 1280px;
-      margin: 0 auto var(--space-4);
-      padding: var(--space-4) var(--space-6);
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: var(--space-4);
-      background: var(--required-badge-bg);
-      border: 2px solid var(--required-badge-border);
-      border-left: 6px solid var(--warning);
-      border-radius: var(--radius-card);
-      box-shadow: 0 18px 60px rgba(245, 158, 11, 0.24), var(--shadow);
-      color: var(--required-badge-text);
-      outline: 1px solid color-mix(in srgb, var(--cp-surface) 70%, transparent);
-      outline-offset: -5px;
-    }
-
-    .analytics-banner[hidden] {
-      display: none;
-    }
-
-    .analytics-banner-copy {
-      max-width: 780px;
-    }
-
-    .analytics-banner h2 {
-      margin-bottom: 6px;
-      font-size: 20px;
-      color: var(--text);
-    }
-
-    .analytics-banner .kicker {
-      color: var(--text);
-      font-weight: 800;
-    }
-
-    .analytics-banner p:last-child {
-      margin-bottom: 0;
-    }
-
-    .analytics-banner-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-      align-items: center;
-      justify-content: flex-end;
-      min-width: 240px;
-    }
 
     .tree-panel[hidden] {
       display: none;
@@ -2245,15 +2197,6 @@ html[data-theme="dark"] {
     }
 
     @media (max-width: 720px) {
-      .analytics-banner {
-        padding: var(--space-4);
-        flex-direction: column;
-      }
-
-      .analytics-banner-actions {
-        width: 100%;
-        justify-content: flex-start;
-      }
 
       .dlp-stepper {
         flex-direction: column;
@@ -2270,18 +2213,6 @@ html[data-theme="dark"] {
 <body>
   <a class="skip-link" href="#mainContent">Skip to main content</a>
   <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-  <section id="analyticsConsentBanner" class="analytics-banner" aria-labelledby="analyticsConsentHeading" aria-describedby="analyticsConsentDescription" tabindex="-1" hidden>
-    <div class="analytics-banner-copy">
-      <div class="kicker">Analytics consent</div>
-      <h2 id="analyticsConsentHeading">Optional usage analytics</h2>
-      <p id="analyticsConsentDescription">With your permission, this site can load Microsoft Clarity to collect anonymous usage data only. This data is used solely to understand application usage and help the development team prioritize feature development and roadmap planning.</p>
-      <p class="subtle">Declining keeps the assistant fully functional and prevents Clarity from loading in your browser.</p>
-    </div>
-    <div class="analytics-banner-actions">
-      <button id="analyticsConsentDeclineButton" class="secondary" type="button">Decline</button>
-      <button id="analyticsConsentAcceptButton" class="primary" type="button">Accept analytics</button>
-    </div>
-  </section>
   <div id="decisionFlowIntro" class="intro-dialog-backdrop" hidden>
     <section class="intro-dialog" role="dialog" aria-modal="true" aria-labelledby="decisionFlowIntroHeading" aria-describedby="decisionFlowIntroDescription" tabindex="-1">
       <div class="kicker">First-use guide</div>
@@ -2320,7 +2251,6 @@ html[data-theme="dark"] {
       <!--<div class="fluent-note">Fluent 2-inspired interface</div>-->
       <div class="hero-actions">
         <button id="themeToggleButton" class="secondary" type="button" aria-label="Change color theme">Theme: Auto</button>
-        <button id="analyticsPreferencesButton" class="secondary" type="button" hidden>Analytics: Review consent</button>
       </div>
       <div class="disclaimer-banner">
         <strong>Disclaimer:</strong>
@@ -2374,7 +2304,7 @@ html[data-theme="dark"] {
       <h2 id="contextHeading">Tell us about your context</h2>
       <p id="contextIntroText" class="subtle">Help us tailor the decision flow and reference guidance to your industry. Select your industry to enable the decision flow. For specific labeling questions, use the <strong>Start decision flow</strong> button below — the Reference, Exceptions, and Examples sections will dynamically update as you answer.</p>
       <div id="flowModeNote" class="flow-mode-note" hidden></div>
-      <form id="contextForm" class="context-form" onsubmit="return false;">
+      <form id="contextForm" class="context-form">
         <div class="context-field">
           <label for="industrySelect">What industry best describes your organization? <span class="info-icon tooltip-wide" tabindex="0" role="img" aria-label="Industry details" data-tooltip="Used to filter examples, regulatory suggestions, and default label recommendations. Choose the closest match; use Other when no listed industry fits.">i</span> <span class="field-badge required">Required</span></label>
           <select id="industrySelect" class="context-select" aria-required="true">
@@ -4242,10 +4172,6 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     const resultEl              = document.getElementById("result");
     const labelFlowProgressEl   = document.getElementById("labelFlowProgress");
     const themeToggleButtonEl   = document.getElementById("themeToggleButton");
-    const analyticsConsentBannerEl = document.getElementById("analyticsConsentBanner");
-    const analyticsConsentAcceptBtnEl = document.getElementById("analyticsConsentAcceptButton");
-    const analyticsConsentDeclineBtnEl = document.getElementById("analyticsConsentDeclineButton");
-    const analyticsPreferencesButtonEl = document.getElementById("analyticsPreferencesButton");
     const closeTreeButtonEl     = document.getElementById("closeTreeButton");
     const treePanelEl           = document.getElementById("treePanel");
     const treeDiagramEl         = document.getElementById("treeDiagram");
@@ -4264,6 +4190,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     const appAlertCancelButtonEl = document.getElementById("appAlertCancelButton");
     const appAlertOkButtonEl    = document.getElementById("appAlertOkButton");
     const contextPanelEl        = document.getElementById("contextPanel");
+    const contextFormEl         = document.getElementById("contextForm");
     const landingPanelEl        = document.getElementById("landingPanel");
     const contextIntroTextEl    = document.getElementById("contextIntroText");
     const flowModeNoteEl        = document.getElementById("flowModeNote");
@@ -4294,12 +4221,6 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     var   restoreAllBtnEl       = null;
     var   editModeActive        = false;
     const themeMediaQuery       = window.matchMedia("(prefers-color-scheme: dark)");
-    const clarityConfig = {
-      // Add your Clarity project ID here when you are ready to enable telemetry.
-      projectId: "wnzt6akl3c",
-      storageKey: "guidedLabelingAnalyticsConsent"
-    };
-    let clarityLoaded = false;
 
     let themePreference = localStorage.getItem("labelTreeTheme") || "auto";
     const decisionFlowIntroStorageKey = "decisionFlowIntroAcknowledged";
@@ -4604,91 +4525,6 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         return;
       }
       if (!showDecisionFlowIntro()) lockContext();
-    }
-
-    function isClarityConfigured() {
-      return typeof clarityConfig.projectId === "string" && clarityConfig.projectId.trim().length > 0;
-    }
-
-    function getAnalyticsConsent() {
-      return localStorage.getItem(clarityConfig.storageKey) || "denied";
-    }
-
-    function hideAnalyticsConsentBanner() {
-      if (analyticsConsentBannerEl) analyticsConsentBannerEl.hidden = true;
-    }
-
-    function showAnalyticsConsentBanner() {
-      if (!analyticsConsentBannerEl || !isClarityConfigured()) return;
-      analyticsConsentBannerEl.hidden = false;
-      announce('Analytics consent banner shown. Choose whether to allow optional usage analytics.');
-      window.setTimeout(function() {
-        analyticsConsentBannerEl.focus({ preventScroll: true });
-      }, 0);
-    }
-
-    function updateAnalyticsPreferencesButton() {
-      if (!analyticsPreferencesButtonEl) return;
-      if (!isClarityConfigured()) {
-        analyticsPreferencesButtonEl.hidden = true;
-        return;
-      }
-
-      analyticsPreferencesButtonEl.hidden = false;
-      const consent = getAnalyticsConsent();
-      const label = consent === "granted"
-        ? "Analytics: Allowed"
-        : consent === "denied"
-          ? "Analytics: Declined"
-          : "Analytics: Review consent";
-      analyticsPreferencesButtonEl.textContent = label;
-      analyticsPreferencesButtonEl.setAttribute("aria-label", label + ". Activate to review analytics consent.");
-    }
-
-    function loadClarity() {
-      if (!isClarityConfigured() || clarityLoaded) return;
-      clarityLoaded = true;
-
-      (function(c, l, a, r, i, t, y) {
-        c[a] = c[a] || function() { (c[a].q = c[a].q || []).push(arguments); };
-        t = l.createElement(r);
-        t.async = 1;
-        t.src = "https://www.clarity.ms/tag/" + i;
-        y = l.getElementsByTagName(r)[0];
-        y.parentNode.insertBefore(t, y);
-      })(window, document, "clarity", "script", clarityConfig.projectId);
-    }
-
-    function applyAnalyticsConsent(consent, shouldAnnounce) {
-      localStorage.setItem(clarityConfig.storageKey, consent);
-      hideAnalyticsConsentBanner();
-      updateAnalyticsPreferencesButton();
-
-      if (consent === "granted") {
-        loadClarity();
-      }
-
-      if (shouldAnnounce) {
-        announce(consent === "granted" ? "Usage analytics enabled." : "Usage analytics declined.");
-      }
-    }
-
-    function initializeAnalyticsConsent() {
-      if (!isClarityConfigured()) {
-        hideAnalyticsConsentBanner();
-        updateAnalyticsPreferencesButton();
-        return;
-      }
-
-      const consent = getAnalyticsConsent();
-      updateAnalyticsPreferencesButton();
-
-      if (consent === "granted") {
-        loadClarity();
-        return;
-      }
-
-      hideAnalyticsConsentBanner();
     }
 
     // ---- THEME ----
@@ -10230,9 +10066,6 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
     });
 
     themeToggleButtonEl.addEventListener("click", cycleThemePreference);
-    if (analyticsConsentAcceptBtnEl) analyticsConsentAcceptBtnEl.addEventListener("click", function() { applyAnalyticsConsent("granted", true); });
-    if (analyticsConsentDeclineBtnEl) analyticsConsentDeclineBtnEl.addEventListener("click", function() { applyAnalyticsConsent("denied", true); });
-    if (analyticsPreferencesButtonEl) analyticsPreferencesButtonEl.addEventListener("click", function() { showAnalyticsConsentBanner(); });
     if (appAlertOkButtonEl) appAlertOkButtonEl.addEventListener("click", function() {
       if (!activeAppDialog) { hideAppAlert(); return; }
       if (activeAppDialog.mode === 'prompt') {
@@ -10260,6 +10093,7 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         handleLandingSelection(button.getAttribute('data-flow'));
       });
     });
+    contextFormEl.addEventListener("submit", function(event) { event.preventDefault(); });
     closeTreeButtonEl.addEventListener("click", closeTreeVisualization);
     if (dlpWalkthroughBtnEl) dlpWalkthroughBtnEl.addEventListener('click', enterDlpMode);
     if (dlpModeBackBtnEl) dlpModeBackBtnEl.addEventListener('click', exitDlpMode);
@@ -10276,169 +10110,11 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
 
     // ---- INIT ----
     applyThemePreference(themePreference);
-    initializeAnalyticsConsent();
     setupContextPanel();
     buildExportBar();
     renderAll();
     renderSectionsPlaceholder();
 
-    // ==== TEST MODE (removable block — delete from here to END TEST MODE) ====
-    (function initTestMode() {
-      var params = new URLSearchParams(window.location.search);
-      if (params.get('testMode') !== 'true') return;
-
-      var testPanel = document.createElement('div');
-      testPanel.id = 'testModePanel';
-      testPanel.innerHTML = ''
-        + '<style>'
-        + '#testModePanel{position:fixed;top:12px;right:12px;z-index:9999;background:var(--surface);border:2px solid var(--accent, #0078d4);border-radius:10px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.18);max-width:360px;font-size:12px;font-family:inherit;}'
-        + '#testModePanel h3{margin:0 0 8px;font-size:14px;color:var(--text);}'
-        + '#testModePanel .test-badge{display:inline-block;background:var(--accent, #0078d4);color:#fff;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:2px 6px;border-radius:3px;margin-bottom:8px;}'
-        + '#testModePanel .test-tabs{display:flex;gap:4px;margin:10px 0;}'
-        + '#testModePanel .test-tab{flex:1;min-height:40px;padding:10px 12px;border:1px solid var(--border, #ddd);border-radius:var(--radius-control,8px);background:var(--bg, #f5f5f5);cursor:pointer;font-size:12px;font-weight:600;text-align:center;}'
-        + '#testModePanel .test-tab.active{background:var(--accent, #0078d4);color:#fff;border-color:var(--accent, #0078d4);}'
-        + '#testModePanel .test-actions{display:flex;flex-direction:column;gap:6px;margin-top:10px;}'
-        + '#testModePanel .test-btn{min-height:40px;padding:10px 16px;border:1px solid var(--border, #ddd);border-radius:var(--radius-control,8px);background:var(--bg, #f5f5f5);cursor:pointer;font-size:14px;font-weight:600;text-align:center;transition:background 0.15s;}'
-        + '#testModePanel .test-btn:hover{background:var(--accent, #0078d4);color:#fff;}'
-        + '#testModePanel .test-btn.primary{background:var(--accent, #0078d4);color:#fff;border-color:var(--accent, #0078d4);}'
-        + '#testModePanel .test-status{margin-top:8px;font-size:10px;color:var(--text-muted, #888);min-height:14px;}'
-        + '#testModePanel .test-collapse-btn{position:absolute;top:8px;right:10px;min-width:40px;min-height:40px;background:none;border:1px solid transparent;border-radius:var(--radius-control,8px);cursor:pointer;font-size:16px;color:var(--text-muted, #888);}'
-        + '</style>'
-        + '<span class="test-badge">Test Mode</span>'
-        + '<button class="test-collapse-btn" id="testCollapseBtn" title="Minimize">−</button>'
-        + '<h3>Review Mode</h3>'
-        + '<p style="color:var(--text-muted,#888);margin-bottom:6px;">Import a config file and jump to output review.</p>'
-        + '<div class="test-actions">'
-        + '<button class="test-btn primary" id="testImportBtn">Import test config</button>'
-        + '</div>'
-        + '<div class="test-tabs" id="testTabs" style="display:none;">'
-        + '<button class="test-tab active" data-view="labels">Labels</button>'
-        + '<button class="test-tab" data-view="dlp">DLP</button>'
-        + '<button class="test-tab" data-view="both">Both</button>'
-        + '</div>'
-        + '<div class="test-actions" id="testReviewActions" style="display:none;">'
-        + '<button class="test-btn" id="testExportWordLabels">Export labels Word</button>'
-        + '<button class="test-btn" id="testExportWordDlp">Export DLP Word</button>'
-        + '<button class="test-btn" id="testExportJson">Export DLP JSON</button>'
-        + '<button class="test-btn" id="testReset">Reset test config</button>'
-        + '</div>'
-        + '<div class="test-status" id="testStatus"></div>';
-      document.body.appendChild(testPanel);
-
-      var testStatus = document.getElementById('testStatus');
-      var testTabs = document.getElementById('testTabs');
-      var testReviewActions = document.getElementById('testReviewActions');
-      var collapsed = false;
-
-      document.getElementById('testCollapseBtn').addEventListener('click', function() {
-        collapsed = !collapsed;
-        testPanel.querySelectorAll('h3,p,.test-actions,.test-tabs,.test-status').forEach(function(el) {
-          el.style.display = collapsed ? 'none' : '';
-        });
-        this.textContent = collapsed ? '+' : '−';
-        testPanel.style.maxWidth = collapsed ? '120px' : '360px';
-      });
-
-      function setStatus(msg) { testStatus.textContent = msg; }
-
-      function showReviewUi(view) {
-        testTabs.style.display = 'flex';
-        testReviewActions.style.display = 'flex';
-        testTabs.querySelectorAll('.test-tab').forEach(function(tab) {
-          tab.classList.toggle('active', tab.getAttribute('data-view') === view);
-        });
-        applyTestView(view);
-      }
-
-      function applyTestView(view) {
-        if (view === 'labels' || view === 'both') {
-          contextPanelEl.setAttribute('hidden', '');
-          mainGridEl.removeAttribute('hidden');
-          changeContextRowEl.removeAttribute('hidden');
-          referenceSectionEl.removeAttribute('hidden');
-          exceptionsSectionEl.removeAttribute('hidden');
-          examplesSectionEl.removeAttribute('hidden');
-        }
-        if (view === 'dlp' || view === 'both') {
-          if (state.dlp.completed) {
-            state.dlp.modeActive = true;
-            renderDlpResults();
-          }
-        }
-        if (view === 'labels') {
-          state.dlp.modeActive = false;
-          var dlpPanel = document.getElementById('dlpPanel');
-          if (dlpPanel) dlpPanel.hidden = true;
-        }
-        if (view === 'dlp') {
-          mainGridEl.setAttribute('hidden', '');
-          referenceSectionEl.setAttribute('hidden', '');
-          exceptionsSectionEl.setAttribute('hidden', '');
-          examplesSectionEl.setAttribute('hidden', '');
-        }
-        renderAll();
-      }
-
-      testTabs.addEventListener('click', function(e) {
-        var tab = e.target.closest('.test-tab');
-        if (!tab) return;
-        var view = tab.getAttribute('data-view');
-        showReviewUi(view);
-      });
-
-      document.getElementById('testImportBtn').addEventListener('click', function() {
-        var input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.addEventListener('change', function() {
-          if (!input.files.length) return;
-          var file = input.files[0];
-          try {
-            assertImportFileSize(file);
-          } catch (err) {
-            setStatus('✗ Error: ' + err.message);
-            return;
-          }
-          var reader = new FileReader();
-          reader.onload = function(e) {
-            try {
-              var data = parseImportedJson(e.target.result);
-              hydrateImportedSession(data);
-              if (state.context.locked) {
-                contextPanelEl.setAttribute('hidden', '');
-                mainGridEl.removeAttribute('hidden');
-                changeContextRowEl.removeAttribute('hidden');
-                referenceSectionEl.removeAttribute('hidden');
-                exceptionsSectionEl.removeAttribute('hidden');
-                examplesSectionEl.removeAttribute('hidden');
-              }
-              renderAll();
-              var hasLabels = state.sessionLog.length > 0;
-              var hasDlp = state.dlp.completed;
-              setStatus('✓ Loaded: ' + (hasLabels ? state.sessionLog.length + ' label(s)' : 'no labels') + ', DLP: ' + (hasDlp ? 'configured' : 'none'));
-              showReviewUi(hasDlp && hasLabels ? 'both' : hasDlp ? 'dlp' : 'labels');
-            } catch (err) {
-              setStatus('✗ Error: ' + err.message);
-            }
-          };
-          reader.readAsText(file);
-        });
-        input.click();
-      });
-
-      document.getElementById('testExportWordLabels').addEventListener('click', function() { exportWord(); });
-      document.getElementById('testExportWordDlp').addEventListener('click', function() { exportDlpWord(); });
-      document.getElementById('testExportJson').addEventListener('click', function() { exportDlpJson(); });
-      document.getElementById('testReset').addEventListener('click', function() {
-        changeContext();
-        testTabs.style.display = 'none';
-        testReviewActions.style.display = 'none';
-        setStatus('Reset complete.');
-      });
-
-      setStatus('Ready — import a test config file.');
-    })();
-    // ==== END TEST MODE ====
   </script>
 </body>
 </html>

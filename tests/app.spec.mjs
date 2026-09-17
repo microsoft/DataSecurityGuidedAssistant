@@ -1,9 +1,17 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { createCipheriv, pbkdf2Sync, randomBytes } from 'node:crypto';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('guidedLabelingAnalyticsConsent', 'denied');
+    window.__cspViolations = [];
+    document.addEventListener('securitypolicyviolation', event => {
+      window.__cspViolations.push({
+        blockedURI: event.blockedURI,
+        directive: event.effectiveDirective
+      });
+    });
   });
 });
 
@@ -31,6 +39,7 @@ test('completes a representative labeling workflow without browser errors', asyn
 
   await expect(page.locator('#question')).toContainText('Decision flow complete.');
   await expect(page.locator('#result .label-badge')).toContainText('Public');
+  expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
   expect(browserErrors).toEqual([]);
 });
 
@@ -59,7 +68,6 @@ test('has no serious or critical accessibility violations in the primary flow', 
 });
 
 test('imports trusted session keys without rendering imported markup or handlers', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const payload = validImportedSession();
   payload.context.industryLabel = '<img id="industry-payload" src=x onerror="window.__importPwned=1">';
   payload.labelingState.rationale = '<svg id="rationale-payload" onload="window.__importPwned=1"></svg>';
@@ -68,7 +76,6 @@ test('imports trusted session keys without rendering imported markup or handlers
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
   await expect(page.locator('#filterChipRow')).toContainText('Education + 8-tier implementation model');
   await expect(page.locator('#result .label-badge')).toContainText('Public');
   await expect(page.locator('#result .result-summary')).toContainText('The content is approved for unrestricted external use.');
@@ -77,39 +84,61 @@ test('imports trusted session keys without rendering imported markup or handlers
 });
 
 test('rejects imported sessions with unknown fields or unsupported versions', async ({ page }) => {
-  await page.goto('/?testMode=true');
   const unknownFieldPayload = validImportedSession();
   unknownFieldPayload.unexpected = 'not allowed';
   await importTestSession(page, unknownFieldPayload);
-  await expect(page.locator('#testStatus')).toContainText('unknown property "unexpected"');
+  await expect(page.locator('#appAlertMessage')).toContainText('unknown property "unexpected"');
+  await page.locator('#appAlertOkButton').click();
 
   const unsupportedPayload = validImportedSession();
   unsupportedPayload.version = 99;
   await importTestSession(page, unsupportedPayload);
-  await expect(page.locator('#testStatus')).toContainText('Unsupported session file version: 99');
+  await expect(page.locator('#appAlertMessage')).toContainText('Unsupported session file version: 99');
 });
 
 test('rejects oversized imported session files', async ({ page }) => {
-  await page.goto('/?testMode=true');
-  let chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#testImportBtn').click();
-  let chooser = await chooserPromise;
+  await openLabelingSetup(page);
+  let chooser = await chooseImportFile(page);
   await chooser.setFiles({
     name: 'oversized-session.json',
     mimeType: 'application/json',
     buffer: Buffer.from(' '.repeat((2 * 1024 * 1024) + 1))
   });
-  await expect(page.locator('#testStatus')).toContainText('Import file exceeds the 2 MB size limit');
+  await expect(page.locator('#appAlertMessage')).toContainText('Import file exceeds the 2 MB size limit');
+  await page.locator('#appAlertOkButton').click();
 
-  chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#testImportBtn').click();
-  chooser = await chooserPromise;
+  chooser = await chooseImportFile(page);
   await chooser.setFiles({
     name: 'oversized-payload.json',
     mimeType: 'application/json',
-    buffer: Buffer.from(`{"version":2,"padding":"${'x'.repeat((1024 * 1024) + 1)}"}`)
+    buffer: encryptedSession(`{"version":2,"padding":"${'x'.repeat((1024 * 1024) + 1)}"}`, TEST_PASSPHRASE)
   });
-  await expect(page.locator('#testStatus')).toContainText('Import payload exceeds the 1 MB size limit');
+  await submitImportPassphrase(page);
+  await expect(page.locator('#appAlertMessage')).toContainText('Import payload exceeds the 1 MB size limit');
+});
+
+test('?testMode=true exposes no production test panel', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  await expect(page.locator('#testModePanel, #testImportBtn, #testStatus')).toHaveCount(0);
+});
+
+test('declined analytics and customer-entered values produce no third-party requests', async ({ page }) => {
+  const requests = [];
+  page.on('request', request => {
+    if (!request.url().startsWith('http://127.0.0.1:4173/')) {
+      requests.push({ url: request.url(), postData: request.postData() || '' });
+    }
+  });
+
+  await page.addInitScript(() => {
+    localStorage.setItem('guidedLabelingAnalyticsConsent', 'granted');
+  });
+  const customerValue = 'customer-secret-value@example.test';
+  await importTestSession(page, validImportedSession(), customerValue);
+
+  expect(requests).toEqual([]);
+  expect(JSON.stringify(requests)).not.toContain(customerValue);
+  expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
 });
 
 function isBlockingViolation(violation) {
@@ -117,20 +146,54 @@ function isBlockingViolation(violation) {
 }
 
 async function openLabelingSetup(page) {
+  if (page.url() === 'about:blank') {
+    await page.goto('/');
+  }
   await page.getByRole('button', { name: 'Start Labeling tool' }).click();
   await expect(page.getByRole('dialog', { name: 'Before you start the Labeling tool' })).toBeVisible();
   await page.getByRole('button', { name: 'Continue to setup' }).click();
 }
 
-async function importTestSession(page, payload) {
+const TEST_PASSPHRASE = 'playwright-import-passphrase';
+
+async function chooseImportFile(page) {
   const chooserPromise = page.waitForEvent('filechooser');
-  await page.locator('#testImportBtn').click();
-  const chooser = await chooserPromise;
+  await page.getByRole('button', { name: 'Resume labeling session' }).click();
+  return chooserPromise;
+}
+
+async function submitImportPassphrase(page, passphrase = TEST_PASSPHRASE) {
+  await expect(page.getByRole('alertdialog', { name: 'Decrypt import' })).toBeVisible();
+  await page.locator('#appAlertInput').fill(passphrase);
+  await page.getByRole('button', { name: 'Decrypt' }).click();
+}
+
+async function importTestSession(page, payload, passphrase = TEST_PASSPHRASE) {
+  if (page.url() === 'about:blank') {
+    await page.goto('/');
+    await openLabelingSetup(page);
+  }
+  const chooser = await chooseImportFile(page);
   await chooser.setFiles({
-    name: 'session.json',
+    name: 'session.enc.json',
     mimeType: 'application/json',
-    buffer: Buffer.from(JSON.stringify(payload))
+    buffer: encryptedSession(JSON.stringify(payload), passphrase)
   });
+  await submitImportPassphrase(page, passphrase);
+}
+
+function encryptedSession(plaintext, passphrase) {
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const key = pbkdf2Sync(passphrase, salt, 310000, 32, 'sha256');
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final(), cipher.getAuthTag()]);
+  return Buffer.from(JSON.stringify({
+    v: 2,
+    salt: salt.toString('base64'),
+    iv: iv.toString('base64'),
+    data: ciphertext.toString('base64')
+  }));
 }
 
 function validImportedSession() {
