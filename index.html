@@ -5346,7 +5346,10 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       chip.setAttribute("aria-label", "Filtered for: " + label + ". Activate button to clear filter.");
 
       var chipText = document.createElement("span");
-      chipText.innerHTML = "Filtered for: <strong>" + label + "</strong>";
+      chipText.appendChild(document.createTextNode("Filtered for: "));
+      var chipLabel = document.createElement("strong");
+      chipLabel.textContent = label;
+      chipText.appendChild(chipLabel);
 
       var clearBtn = document.createElement("button");
       clearBtn.className = "filter-chip-clear";
@@ -7358,11 +7361,21 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
 
     function importDlpLabelsFromSessionFile(file) {
       if (!file) return;
+      try {
+        assertImportFileSize(file);
+      } catch (err) {
+        state.dlp.selectedLabels = [];
+        state.dlp.importFileName = file.name;
+        state.dlp.importMessage = 'Unable to import labels: ' + err.message;
+        renderDlpLabelSelector();
+        alert(state.dlp.importMessage);
+        return;
+      }
       var reader = new FileReader();
       reader.onload = async function(e) {
         var raw = e.target.result;
         Promise.resolve().then(async function() {
-          var parsed = JSON.parse(raw);
+          var parsed = parseImportedJson(raw);
           if (parsed && parsed.data && parsed.iv && parsed.salt) {
             var passphrase = await showAppPrompt('Enter the passphrase to import label selections from "' + file.name + '".', {
               title: 'Import label selections',
@@ -7370,12 +7383,12 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
               inputType: 'password'
             });
             if (passphrase === null) return null;
-            return decryptPayload(raw, passphrase).then(function(plaintext) { return JSON.parse(plaintext); });
+            return decryptPayload(raw, passphrase).then(function(plaintext) { return parseImportedJson(plaintext); });
           }
           return parsed;
         }).then(function(imported) {
           if (!imported) return;
-          var keys = extractLabelKeysFromImportedSession(imported);
+          var keys = extractLabelKeysFromImportedSession(validateAndSanitizeImportedSession(imported));
           if (!keys.length) throw new Error('No saved labels were found in this session file.');
           state.dlp.labelSource = 'import';
           state.dlp.selectedLabels = keys;
@@ -8952,10 +8965,21 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       badge.className = 'label-badge';
       badge.style.background = displayLabel.color;
       badge.style.color = getLabelBadgeTextColorForKey(state.resultKey);
-      badge.innerHTML = '<span class="dot"></span>' + displayLabel.name;
+      var badgeDot = document.createElement('span');
+      badgeDot.className = 'dot';
+      badge.appendChild(badgeDot);
+      badge.appendChild(document.createTextNode(displayLabel.name));
       var definition = document.createElement('p');
       definition.className = 'result-summary';
-      definition.innerHTML = '<strong>Why:</strong> ' + state.rationale + ' <br><strong>Definition:</strong> ' + label.definition;
+      var whyLabel = document.createElement('strong');
+      whyLabel.textContent = 'Why:';
+      definition.appendChild(whyLabel);
+      definition.appendChild(document.createTextNode(' ' + state.rationale + ' '));
+      definition.appendChild(document.createElement('br'));
+      var definitionLabel = document.createElement('strong');
+      definitionLabel.textContent = 'Definition:';
+      definition.appendChild(definitionLabel);
+      definition.appendChild(document.createTextNode(' ' + label.definition));
       if (simplified) {
         var modelNote = document.createElement('p');
         modelNote.className = 'model-note';
@@ -9311,7 +9335,231 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       };
     }
 
+    var IMPORT_LIMITS = {
+      fileBytes: 2 * 1024 * 1024,
+      payloadCharacters: 1024 * 1024,
+      arrayItems: 200,
+      stringCharacters: 4000,
+      objectProperties: 100,
+      depth: 12
+    };
+
+    function assertImport(condition, message) {
+      if (!condition) throw new Error(message);
+    }
+
+    function assertKnownProperties(value, allowed, path) {
+      assertImport(value && typeof value === 'object' && !Array.isArray(value), path + ' must be an object.');
+      Object.keys(value).forEach(function(key) {
+        assertImport(allowed.indexOf(key) !== -1, path + ' contains unknown property "' + key + '".');
+      });
+    }
+
+    function validateImportValue(value, path, depth) {
+      assertImport(depth <= IMPORT_LIMITS.depth, path + ' is nested too deeply.');
+      if (typeof value === 'string') {
+        assertImport(value.length <= IMPORT_LIMITS.stringCharacters, path + ' exceeds the maximum string length.');
+        return;
+      }
+      if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+        assertImport(typeof value !== 'number' || Number.isFinite(value), path + ' contains an invalid number.');
+        return;
+      }
+      if (Array.isArray(value)) {
+        assertImport(value.length <= IMPORT_LIMITS.arrayItems, path + ' exceeds the maximum array length.');
+        value.forEach(function(item, index) { validateImportValue(item, path + '[' + index + ']', depth + 1); });
+        return;
+      }
+      assertImport(value && typeof value === 'object', path + ' contains an unsupported value type.');
+      var keys = Object.keys(value);
+      assertImport(keys.length <= IMPORT_LIMITS.objectProperties, path + ' contains too many properties.');
+      keys.forEach(function(key) {
+        assertImport(key !== '__proto__' && key !== 'constructor' && key !== 'prototype', path + ' contains an unsafe property.');
+        validateImportValue(value[key], path + '.' + key, depth + 1);
+      });
+    }
+
+    function assertStringArray(value, path) {
+      assertImport(Array.isArray(value), path + ' must be an array.');
+      assertImport(value.length <= IMPORT_LIMITS.arrayItems, path + ' exceeds the maximum array length.');
+      value.forEach(function(item) { assertImport(typeof item === 'string', path + ' must contain only strings.'); });
+    }
+
+    function validateConfigShape(value, template, path) {
+      assertKnownProperties(value, Object.keys(template), path);
+      Object.keys(value).forEach(function(key) {
+        var expected = template[key];
+        var actual = value[key];
+        if (Array.isArray(expected)) {
+          assertStringArray(actual, path + '.' + key);
+        } else if (expected && typeof expected === 'object') {
+          validateConfigShape(actual, expected, path + '.' + key);
+        } else if (expected === null) {
+          assertImport(actual === null || typeof actual === 'string' || typeof actual === 'boolean', path + '.' + key + ' has an invalid type.');
+        } else {
+          assertImport(typeof actual === typeof expected, path + '.' + key + ' has an invalid type.');
+        }
+      });
+    }
+
+    function getTrustedRationaleForKey(labelKey) {
+      var questionIds = Object.keys(model.questions);
+      for (var i = 0; i < questionIds.length; i++) {
+        var question = model.questions[questionIds[i]];
+        var answers = ['yes', 'no'];
+        for (var j = 0; j < answers.length; j++) {
+          var branch = question[answers[j]];
+          if (branch && branch.result === labelKey && branch.rationale) return branch.rationale;
+        }
+      }
+      return 'The saved decision path maps to this label in the current built-in model.';
+    }
+
+    function sanitizeImportedHistory(history, path) {
+      if (history === undefined) return [];
+      assertImport(Array.isArray(history), path + ' must be an array.');
+      assertImport(history.length <= 50, path + ' exceeds the maximum decision path length.');
+      return history.map(function(step, index) {
+        var stepPath = path + '[' + index + ']';
+        assertKnownProperties(step, ['questionId', 'question', 'answer'], stepPath);
+        assertImport(typeof step.questionId === 'string' && !!model.questions[step.questionId], stepPath + '.questionId is invalid.');
+        assertImport(step.answer === 'YES' || step.answer === 'NO', stepPath + '.answer is invalid.');
+        return {
+          questionId: step.questionId,
+          question: model.questions[step.questionId].text,
+          answer: step.answer
+        };
+      });
+    }
+
+    function sanitizeImportedSessionEntry(entry, index, fallbackContext) {
+      var path = 'sessionLog[' + index + ']';
+      assertKnownProperties(entry, [
+        'labelKey', 'labelName', 'implementationLabelName', 'labelModel', 'color', 'rationale',
+        'history', 'regulations', 'contextSnapshot', 'dlpEnabled', 'dlpSummary', 'dlpConfig', 'rolloutPlan'
+      ], path);
+      assertImport(typeof entry.labelKey === 'string' && !!model.labels[entry.labelKey], path + '.labelKey is invalid.');
+      if (entry.labelModel !== undefined) assertImport(entry.labelModel === '8tier' || entry.labelModel === '4tier', path + '.labelModel is invalid.');
+      if (entry.regulations !== undefined) assertStringArray(entry.regulations, path + '.regulations');
+      var trustedLabel = entry.labelModel === '4tier'
+        ? (fourTierLabels[getFourTierKey(entry.labelKey)] || model.labels[entry.labelKey])
+        : model.labels[entry.labelKey];
+      return {
+        labelKey: entry.labelKey,
+        labelName: trustedLabel.name,
+        implementationLabelName: model.labels[entry.labelKey].name,
+        labelModel: entry.labelModel || '8tier',
+        color: model.labels[entry.labelKey].color,
+        rationale: getTrustedRationaleForKey(entry.labelKey),
+        history: sanitizeImportedHistory(entry.history, path + '.history'),
+        regulations: (entry.regulations || []).slice(),
+        contextSnapshot: sanitizeImportedContext(entry.contextSnapshot || fallbackContext || {}, path + '.contextSnapshot'),
+        dlpEnabled: !!entry.dlpEnabled,
+        dlpSummary: entry.dlpSummary || null,
+        dlpConfig: entry.dlpConfig || null,
+        rolloutPlan: Array.isArray(entry.rolloutPlan) ? cloneData(entry.rolloutPlan) : []
+      };
+    }
+
+    function sanitizeImportedContext(ctx, path) {
+      path = path || 'context';
+      assertKnownProperties(ctx, [
+        'industry', 'industryLabel', 'dataTypes', 'regulations', 'manualRegulations',
+        'suppressedRegulations', 'regulationCountryFilter', 'labelModel', 'locked',
+        'licensing', 'licensingLabel', 'addOns', 'orgProfile', 'labelDeployment', 'currentPosture'
+      ], path);
+      var industryKeys = Object.keys(industryDisplayLabels);
+      if (ctx.industry !== undefined && ctx.industry !== null) {
+        assertImport(typeof ctx.industry === 'string' && industryKeys.indexOf(ctx.industry) !== -1, path + '.industry is invalid.');
+      }
+      ['dataTypes', 'regulations', 'manualRegulations', 'suppressedRegulations'].forEach(function(key) {
+        if (ctx[key] !== undefined) assertStringArray(ctx[key], path + '.' + key);
+      });
+      if (ctx.labelModel !== undefined) assertImport(ctx.labelModel === '8tier' || ctx.labelModel === '4tier', path + '.labelModel is invalid.');
+      if (ctx.locked !== undefined) assertImport(typeof ctx.locked === 'boolean', path + '.locked has an invalid type.');
+      if (ctx.licensing !== undefined && ctx.licensing !== null) {
+        assertImport(typeof ctx.licensing === 'string' && normalizeLicenseKey(ctx.licensing) === ctx.licensing, path + '.licensing is invalid.');
+      }
+      if (ctx.addOns !== undefined) validateConfigShape(ctx.addOns, { defenderOnboarded: false, autoLabelingWanted: false, copilotLicensedOrPlanned: false }, path + '.addOns');
+      if (ctx.orgProfile !== undefined) validateConfigShape(ctx.orgProfile, { geography: null, workforce: null, deviceModel: null, contractors: null }, path + '.orgProfile');
+      if (ctx.labelDeployment !== undefined) validateConfigShape(ctx.labelDeployment, getDefaultLabelDeployment(), path + '.labelDeployment');
+      if (ctx.currentPosture !== undefined) validateConfigShape(ctx.currentPosture, { existingDlp: null, labelsDeployed: null, conditionalAccess: null }, path + '.currentPosture');
+      var sanitized = cloneData(ctx);
+      sanitized.industryLabel = sanitized.industry ? industryDisplayLabels[sanitized.industry] : null;
+      sanitized.licensingLabel = sanitized.licensing ? getLicenseOptionLabel(sanitized.licensing) : null;
+      return sanitized;
+    }
+
+    function validateImportedDlpState(dlpState) {
+      assertKnownProperties(dlpState, Object.keys(getEmptyDlpState()), 'dlpState');
+      ['modeActive', 'active', 'completed', 'returnToReview', 'summaryReady', 'finalReviewAccepted'].forEach(function(key) {
+        if (dlpState[key] !== undefined) assertImport(typeof dlpState[key] === 'boolean', 'dlpState.' + key + ' has an invalid type.');
+      });
+      if (dlpState.workflowMode !== undefined) assertImport(dlpState.workflowMode === 'quick' || dlpState.workflowMode === 'advanced', 'dlpState.workflowMode is invalid.');
+      if (dlpState.labelSource !== undefined) assertImport(['default', 'reference', 'import', 'pick'].indexOf(dlpState.labelSource) !== -1, 'dlpState.labelSource is invalid.');
+      ['selectedLabels', 'configuredLabels'].forEach(function(key) {
+        if (dlpState[key] === undefined) return;
+        assertStringArray(dlpState[key], 'dlpState.' + key);
+        dlpState[key].forEach(function(labelKey) {
+          assertImport(!!getDlpLabelForKey(labelKey), 'dlpState.' + key + ' contains an unknown label key.');
+        });
+      });
+      if (dlpState.config !== undefined) validateConfigShape(dlpState.config, getEmptyDlpConfig(), 'dlpState.config');
+    }
+
+    function validateAndSanitizeImportedSession(imported) {
+      validateImportValue(imported, 'session', 0);
+      assertKnownProperties(imported, [
+        'version', 'exportedAt', 'context', 'selectedToolFlow', 'labelingState',
+        'visibleLabelKeys', 'hiddenLabelKeys', 'sessionLog', 'dlpState'
+      ], 'session');
+      assertImport(imported.version === 1 || imported.version === 2, 'Unsupported session file version: ' + imported.version + '.');
+      assertImport(Array.isArray(imported.sessionLog), 'sessionLog must be an array.');
+      assertImport(imported.sessionLog.length <= IMPORT_LIMITS.arrayItems, 'sessionLog exceeds the maximum array length.');
+      if (imported.selectedToolFlow !== undefined && imported.selectedToolFlow !== null) {
+        assertImport(imported.selectedToolFlow === 'labeling' || imported.selectedToolFlow === 'dlp', 'selectedToolFlow is invalid.');
+      }
+      var context = sanitizeImportedContext(imported.context || {}, 'context');
+      ['visibleLabelKeys', 'hiddenLabelKeys'].forEach(function(key) {
+        if (imported[key] === undefined) return;
+        assertStringArray(imported[key], key);
+        imported[key].forEach(function(labelKey) { assertImport(!!model.labels[labelKey], key + ' contains an unknown label key.'); });
+      });
+      var labelingState = imported.labelingState;
+      if (imported.version === 2) {
+        assertKnownProperties(labelingState || {}, ['currentQuestionId', 'history', 'resultKey', 'rationale'], 'labelingState');
+        if (labelingState && labelingState.currentQuestionId !== null && labelingState.currentQuestionId !== undefined) {
+          assertImport(typeof labelingState.currentQuestionId === 'string' && !!model.questions[labelingState.currentQuestionId], 'labelingState.currentQuestionId is invalid.');
+        }
+        if (labelingState && labelingState.resultKey !== null && labelingState.resultKey !== undefined) {
+          assertImport(typeof labelingState.resultKey === 'string' && !!model.labels[labelingState.resultKey], 'labelingState.resultKey is invalid.');
+        }
+        if (labelingState && labelingState.history !== undefined) sanitizeImportedHistory(labelingState.history, 'labelingState.history');
+      }
+      if (imported.dlpState !== undefined) validateImportedDlpState(imported.dlpState);
+      var sanitized = cloneData(imported);
+      sanitized.context = context;
+      sanitized.sessionLog = imported.sessionLog.map(function(entry, index) {
+        return sanitizeImportedSessionEntry(entry, index, context);
+      });
+      if (sanitized.labelingState && sanitized.labelingState.resultKey) {
+        sanitized.labelingState.rationale = getTrustedRationaleForKey(sanitized.labelingState.resultKey);
+        sanitized.labelingState.history = sanitizeImportedHistory(sanitized.labelingState.history, 'labelingState.history');
+      }
+      return sanitized;
+    }
+
+    function assertImportFileSize(file) {
+      assertImport(file.size <= IMPORT_LIMITS.fileBytes, 'Import file exceeds the 2 MB size limit.');
+    }
+
+    function parseImportedJson(raw) {
+      assertImport(typeof raw === 'string' && raw.length <= IMPORT_LIMITS.payloadCharacters, 'Import payload exceeds the 1 MB size limit.');
+      return JSON.parse(raw);
+    }
+
     function hydrateImportedSession(imported) {
+      imported = validateAndSanitizeImportedSession(imported);
       var payloadVersion = imported.version || 1;
       if (!Array.isArray(imported.sessionLog)) throw new Error('Invalid session file structure.');
       state.sessionLog = imported.sessionLog.map(function(entry) {
@@ -9485,12 +9733,18 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       input.addEventListener('change', async function() {
         var file = input.files[0];
         if (!file) return;
+        try {
+          assertImportFileSize(file);
+        } catch (err) {
+          alert('Import failed.\n\n' + err.message);
+          return;
+        }
         var passphrase = await promptForImportPassphrase(file.name);
         if (passphrase === null) return;
         var reader = new FileReader();
         reader.onload = function(e) {
           decryptPayload(e.target.result, passphrase).then(async function(plaintext) {
-            var imported = JSON.parse(plaintext);
+            var imported = validateAndSanitizeImportedSession(parseImportedJson(plaintext));
             if (options.requireDlpProgress && !hasDlpProgressSnapshot(imported.dlpState)) {
               alert('That encrypted session does not contain DLP walkthrough progress.');
               return;
@@ -9532,8 +9786,12 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
 
     decryptPayload = (function(originalDecrypt) {
       return async function(encryptedJson, passphrase) {
-        var payload = JSON.parse(encryptedJson);
+        var payload = parseImportedJson(encryptedJson);
+        assertKnownProperties(payload, ['v', 'salt', 'iv', 'data'], 'encrypted session');
         if (payload.v !== 1 && payload.v !== 2) throw new Error('Unsupported encrypted file version: ' + payload.v);
+        ['salt', 'iv', 'data'].forEach(function(key) {
+          assertImport(typeof payload[key] === 'string' && payload[key].length > 0, 'encrypted session.' + key + ' is invalid.');
+        });
         return originalDecrypt(JSON.stringify(Object.assign({}, payload, { v: 1 })), passphrase);
       };
     })(decryptPayload);
@@ -10135,10 +10393,16 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         input.addEventListener('change', function() {
           if (!input.files.length) return;
           var file = input.files[0];
+          try {
+            assertImportFileSize(file);
+          } catch (err) {
+            setStatus('✗ Error: ' + err.message);
+            return;
+          }
           var reader = new FileReader();
           reader.onload = function(e) {
             try {
-              var data = JSON.parse(e.target.result);
+              var data = parseImportedJson(e.target.result);
               hydrateImportedSession(data);
               if (state.context.locked) {
                 contextPanelEl.setAttribute('hidden', '');
