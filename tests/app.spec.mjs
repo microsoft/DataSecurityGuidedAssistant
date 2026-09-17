@@ -554,6 +554,99 @@ test('sanitizes unfinished decision history and clears imported rationale', asyn
   });
 });
 
+test('derives rationale from the imported terminal decision path', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.labelingState.resultKey = 'general';
+  payload.labelingState.history = [
+    { questionId: 'q1', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q2', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q3', question: 'untrusted', answer: 'NO' }
+  ];
+  payload.sessionLog[0].labelKey = 'general';
+  payload.sessionLog[0].history = structuredClone(payload.labelingState.history);
+  payload.labelingState.currentQuestionId = 'q2';
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  expect(await page.evaluate(() => ({
+    currentQuestionId: state.currentQuestionId,
+    rationale: state.rationale,
+    savedRationale: state.sessionLog[0].rationale
+  }))).toEqual({
+    currentQuestionId: null,
+    rationale: 'Without named people or non-public business data, the content stays at General.',
+    savedRationale: 'Without named people or non-public business data, the content stays at General.'
+  });
+});
+
+test('rejects unknown regulations and DLP location keys', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const contextRegulation = validImportedSession();
+  contextRegulation.context.regulations = ['fake_regulation'];
+  await importTestSession(page, contextRegulation);
+  await expect(page.locator('#testStatus')).toContainText('context.regulations contains an unknown value');
+
+  const entryRegulation = validImportedSession();
+  entryRegulation.sessionLog[0].regulations = ['constructor'];
+  await importTestSession(page, entryRegulation);
+  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].regulations contains an unknown value');
+
+  const location = validImportedSession();
+  location.dlpState = {
+    config: {
+      targetScopes: {
+        locations: ['constructor']
+      }
+    }
+  };
+  await importTestSession(page, location);
+  await expect(page.locator('#testStatus')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+});
+
+test('normalizes emitted label policy SITs for report consumers', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpSummary = {
+    policyName: 'Label policy export',
+    labelName: 'Public',
+    locations: [],
+    actions: 'Audit only',
+    sitSummary: [],
+    limitations: []
+  };
+  payload.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      labelPolicies: [{
+        labelKey: 'public',
+        conditions: {
+          sits: [{ key: 'all_full_names', label: 'All Full Names', confidence: 'HIGH', minCount: 2 }]
+        }
+      }]
+    }
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  const result = await page.evaluate(() => {
+    const sits = state.sessionLog[0].dlpConfig.policy.conditions.sits;
+    return {
+      sits,
+      reportContainsSit: buildLabelReportHtml(false).includes('All Full Names (HIGH, min 2)')
+    };
+  });
+  expect(result).toEqual({
+    sits: [{
+      key: 'all_full_names',
+      label: 'All Full Names',
+      confidence: 'high',
+      minCount: 2
+    }],
+    reportContainsSit: true
+  });
+});
+
 test('rejects oversized imported session files', async ({ page }) => {
   await page.goto('/?testMode=true');
   let chooserPromise = page.waitForEvent('filechooser');
