@@ -9792,6 +9792,12 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       }
       if (dlpState.config !== undefined) {
         validateConfigShape(dlpState.config, getEmptyDlpConfig(), 'dlpState.config');
+        if (dlpState.config.targetScopes && dlpState.config.targetScopes.locations !== undefined) {
+          assertAllowedStrings(dlpState.config.targetScopes.locations, dlpLocationLabels, 'dlpState.config.targetScopes.locations');
+        }
+        if (dlpState.config.sitConfig && dlpState.config.sitConfig.selectedSits !== undefined) {
+          assertAllowedStrings(dlpState.config.sitConfig.selectedSits, getSitCatalogMap(), 'dlpState.config.sitConfig.selectedSits');
+        }
         sanitized.config = rebuildConfigShape(dlpState.config, getEmptyDlpConfig());
       }
       sanitized.labelConfigs = sanitizeImportedLabelConfigs(dlpState.labelConfigs, labelModel, 'dlpState.labelConfigs');
