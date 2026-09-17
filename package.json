@@ -3,6 +3,7 @@
   "version": "2.0.1571",
   "private": true,
   "scripts": {
+    "check:dependencies": "node scripts/check-dependencies.mjs",
     "check:html": "html-validate index.html",
     "check:scripts": "node scripts/check-inline-scripts.mjs",
     "test:browser": "playwright test"

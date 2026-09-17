@@ -40,6 +40,9 @@ try {
         exit 1
     }
 
+    Invoke-VerificationStep "Offline dependency policy" {
+        & pwsh (Join-Path $PSScriptRoot 'dependency-health.ps1')
+    }
     Invoke-VerificationStep "HTML validation" {
         & npm run check:html --silent
     }
