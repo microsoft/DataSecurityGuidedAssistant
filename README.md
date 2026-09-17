@@ -92,7 +92,9 @@ DLP decisions against your organization's policies and obligations.
 
 See [SECURITY.md](SECURITY.md) for reporting security issues, [SUPPORT.md](SUPPORT.md)
 for getting help, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community
-guidelines. Notable changes are tracked in [CHANGELOG.md](CHANGELOG.md).
+guidelines. This repository prohibits CI; contributors must follow the mandatory local
+verification process in [AGENTS.md](AGENTS.md) and record the results in the pull request
+template. Notable changes are tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
