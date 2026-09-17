@@ -602,6 +602,21 @@ test('rejects unknown regulations and DLP location keys', async ({ page }) => {
   };
   await importTestSession(page, location);
   await expect(page.locator('#testStatus')).toContainText('dlpState.config.targetScopes.locations contains an unknown value');
+
+  const countryFilter = validImportedSession();
+  countryFilter.context.regulationCountryFilter = 'constructor';
+  await importTestSession(page, countryFilter);
+  await expect(page.locator('#testStatus')).toContainText('context.regulationCountryFilter is invalid');
+
+  const snapshotLocation = validImportedSession();
+  snapshotLocation.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      locationKeys: ['constructor']
+    }
+  };
+  await importTestSession(page, snapshotLocation);
+  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.locationKeys contains an unknown value');
 });
 
 test('normalizes emitted label policy SITs for report consumers', async ({ page }) => {
@@ -645,6 +660,74 @@ test('normalizes emitted label policy SITs for report consumers', async ({ page 
     }],
     reportContainsSit: true
   });
+});
+
+test('deduplicates validated SITs across imported label policies', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  const sit = { key: 'all_full_names', label: 'All Full Names', confidence: 'HIGH', minCount: 2 };
+  payload.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      labelPolicies: [
+        { labelKey: 'public', conditions: { sits: [sit] } },
+        { labelKey: 'general', conditions: { sits: [sit] } }
+      ]
+    }
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  expect(await page.evaluate(() => state.sessionLog[0].dlpConfig.policy.conditions.sits)).toEqual([{
+    key: 'all_full_names',
+    label: 'All Full Names',
+    confidence: 'high',
+    minCount: 2
+  }]);
+});
+
+test('rejects unknown SIT keys in imported policy snapshots', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.sessionLog[0].dlpConfig = {
+    version: 3,
+    policy: {
+      conditions: {
+        sits: [{ key: 'constructor', label: 'Invalid', confidence: 'medium', minCount: 1 }]
+      }
+    }
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].dlpConfig.policy.conditions.sits[0].key is invalid');
+});
+
+test('rejects impossible imported session-log decision paths', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.sessionLog[0].history = [
+    { questionId: 'q1', question: 'untrusted', answer: 'NO' },
+    { questionId: 'q3', question: 'untrusted', answer: 'NO' }
+  ];
+  payload.sessionLog[0].labelKey = 'general';
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('sessionLog[0].history[1].questionId does not follow the decision path');
+});
+
+test('derives unfinished current question from validated history', async ({ page }) => {
+  await page.goto('/?testMode=true');
+  const payload = validImportedSession();
+  payload.labelingState = {
+    currentQuestionId: 'q3',
+    history: [{ questionId: 'q1', question: 'untrusted', answer: 'NO' }],
+    resultKey: null,
+    rationale: 'untrusted'
+  };
+
+  await importTestSession(page, payload);
+  await expect(page.locator('#testStatus')).toContainText('Loaded: 1 label(s)');
+  expect(await page.evaluate(() => state.currentQuestionId)).toBe('q2');
 });
 
 test('rejects oversized imported session files', async ({ page }) => {
