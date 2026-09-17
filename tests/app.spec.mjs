@@ -76,9 +76,15 @@ test('imports trusted session keys without rendering imported markup or handlers
 
   await importTestSession(page, payload);
 
-  await expect(page.locator('#filterChipRow')).toContainText('Education + 8-tier implementation model');
   await expect(page.locator('#result .label-badge')).toContainText('Public');
   await expect(page.locator('#result .result-summary')).toContainText('The content is approved for unrestricted external use.');
+  expect(await page.evaluate(() => ({
+    labelName: state.sessionLog[0].labelName,
+    rationale: state.sessionLog[0].rationale
+  }))).toEqual({
+    labelName: 'Public',
+    rationale: 'The content is approved for unrestricted external use.'
+  });
   await expect(page.locator('#industry-payload, #rationale-payload, #label-payload, #handler-payload')).toHaveCount(0);
   expect(await page.evaluate(() => window.__importPwned === 1)).toBe(false);
 });
@@ -94,6 +100,183 @@ test('rejects imported sessions with unknown fields or unsupported versions', as
   unsupportedPayload.version = 99;
   await importTestSession(page, unsupportedPayload);
   await expect(page.locator('#appAlertMessage')).toContainText('Unsupported session file version: 99');
+});
+
+test('rejects inherited label and question property names', async ({ page }) => {
+  const inheritedLabel = validImportedSession();
+  inheritedLabel.labelingState.resultKey = 'constructor';
+  await importTestSession(page, inheritedLabel);
+  await expect(page.locator('#appAlertMessage')).toContainText('labelingState.resultKey is invalid');
+  await page.locator('#appAlertOkButton').click();
+
+  const inheritedEntryLabel = validImportedSession();
+  inheritedEntryLabel.sessionLog[0].labelKey = 'toString';
+  await importTestSession(page, inheritedEntryLabel);
+  await expect(page.locator('#appAlertMessage')).toContainText('sessionLog[0].labelKey is invalid');
+  await page.locator('#appAlertOkButton').click();
+
+  const inheritedQuestion = validImportedSession();
+  inheritedQuestion.labelingState.currentQuestionId = 'constructor';
+  inheritedQuestion.labelingState.resultKey = null;
+  await importTestSession(page, inheritedQuestion);
+  await expect(page.locator('#appAlertMessage')).toContainText('labelingState.currentQuestionId is invalid');
+  await page.locator('#appAlertOkButton').click();
+
+  const inheritedDlpLabel = validImportedSession();
+  inheritedDlpLabel.dlpState = { selectedLabels: ['constructor'] };
+  await importTestSession(page, inheritedDlpLabel);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.selectedLabels contains an unknown label key');
+});
+
+test('round-trips the emitted encrypted envelope and algorithm', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async payload => {
+    const encrypted = await encryptPayload(JSON.stringify(payload), 'correct horse battery staple');
+    const envelope = JSON.parse(encrypted);
+    envelope.v = 2;
+    const plaintext = await decryptPayload(JSON.stringify(envelope), 'correct horse battery staple');
+    const sanitized = validateAndSanitizeImportedSession(JSON.parse(plaintext));
+    return {
+      alg: envelope.alg,
+      version: sanitized.version,
+      resultKey: sanitized.labelingState.resultKey
+    };
+  }, validImportedSession());
+
+  expect(result).toEqual({
+    alg: 'AES-GCM-256 / PBKDF2-SHA-256 / 310000 iterations',
+    version: 2,
+    resultKey: 'public'
+  });
+});
+
+test('imports combined flow context with exported geography arrays', async ({ page }) => {
+  const payload = validImportedSession();
+  payload.selectedToolFlow = 'both';
+  payload.context.orgProfile = {
+    geography: ['north_america', 'europe'],
+    workforce: 'Hybrid',
+    deviceModel: 'Mix',
+    contractors: 'Yes'
+  };
+  payload.sessionLog[0].contextSnapshot.orgProfile = structuredClone(payload.context.orgProfile);
+
+  await importTestSession(page, payload);
+
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  const imported = await page.evaluate(() => ({
+    selectedToolFlow: state.selectedToolFlow,
+    geography: state.context.orgProfile.geography
+  }));
+  expect(imported).toEqual({
+    selectedToolFlow: 'both',
+    geography: ['north_america', 'europe']
+  });
+});
+
+test('validates 4-tier DLP labels against the imported model', async ({ page }) => {
+  const payload = validImportedSession();
+  payload.context.labelModel = '4tier';
+  payload.sessionLog[0].labelModel = '4tier';
+  payload.sessionLog[0].contextSnapshot.labelModel = '4tier';
+  payload.dlpState = {
+    workflowMode: 'quick',
+    labelSource: 'pick',
+    selectedLabels: ['confidential'],
+    configuredLabels: ['highly_confidential'],
+    currentStepId: 'g3',
+    history: ['g1', 'g2'],
+    posture: {
+      enforcement: 'balanced',
+      sitFamilies: ['privacy'],
+      selectedSits: ['all_full_names'],
+      strictnessOverride: ''
+    },
+    labelConfigs: {
+      confidential: {
+        actions: {
+          matchAction: 'block_override',
+          overrideMode: 'always',
+          justifications: ['business_need'],
+          otherJustification: '',
+          blockActions: ['block_sharing']
+        },
+        sitConfig: {
+          selectedSits: ['all_full_names'],
+          customSitType: 'no',
+          confidence: 'medium',
+          minCount: 2,
+          logic: 'or'
+        },
+        source: 'suggested',
+        reasoning: ['Trusted generated rationale']
+      }
+    },
+    derived: null
+  };
+
+  await importTestSession(page, payload);
+
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  const dlpState = await page.evaluate(() => ({
+    selectedLabels: state.dlp.selectedLabels,
+    configuredLabels: state.dlp.configuredLabels,
+    minCount: state.dlp.labelConfigs.confidential.sitConfig.minCount,
+    derivedIsObject: !!state.dlp.derived && !Array.isArray(state.dlp.derived)
+  }));
+  expect(dlpState).toEqual({
+    selectedLabels: ['confidential'],
+    configuredLabels: ['highly_confidential'],
+    minCount: 2,
+    derivedIsObject: true
+  });
+});
+
+test('rejects malformed nested DLP state and saved DLP snapshots', async ({ page }) => {
+  const malformedPosture = validImportedSession();
+  malformedPosture.dlpState = { posture: null };
+  await importTestSession(page, malformedPosture);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpState.posture must be an object');
+  await page.locator('#appAlertOkButton').click();
+
+  const malformedSummary = validImportedSession();
+  malformedSummary.sessionLog[0].dlpSummary = { locations: 'not-an-array' };
+  await importTestSession(page, malformedSummary);
+  await expect(page.locator('#appAlertMessage')).toContainText('dlpSummary.locations must be an array');
+  await page.locator('#appAlertOkButton').click();
+
+  const malformedRollout = validImportedSession();
+  malformedRollout.sessionLog[0].rolloutPlan = [null];
+  await importTestSession(page, malformedRollout);
+  await expect(page.locator('#appAlertMessage')).toContainText('rolloutPlan[0] must be an object');
+});
+
+test('sanitizes unfinished decision history and clears imported rationale', async ({ page }) => {
+  const payload = validImportedSession();
+  payload.labelingState.currentQuestionId = 'q2';
+  payload.labelingState.resultKey = null;
+  payload.labelingState.rationale = '<img src=x onerror="window.__historyPwned=1">';
+  payload.labelingState.history = [{
+    questionId: 'q1',
+    question: '<svg onload="window.__historyPwned=1"></svg>',
+    answer: 'NO'
+  }];
+
+  await importTestSession(page, payload);
+
+  await expect(page.locator('#announcer')).toContainText('1 item(s) loaded');
+  const imported = await page.evaluate(() => ({
+    currentQuestionId: state.currentQuestionId,
+    question: state.history[0].question,
+    rationale: state.rationale,
+    pwned: window.__historyPwned === 1
+  }));
+  expect(imported).toEqual({
+    currentQuestionId: 'q2',
+    question: 'Is this content approved for unrestricted external sharing?',
+    rationale: '',
+    pwned: false
+  });
 });
 
 test('rejects oversized imported session files', async ({ page }) => {
@@ -171,6 +354,8 @@ async function submitImportPassphrase(page, passphrase = TEST_PASSPHRASE) {
 async function importTestSession(page, payload, passphrase = TEST_PASSPHRASE) {
   if (page.url() === 'about:blank') {
     await page.goto('/');
+  }
+  if (!await page.getByRole('button', { name: 'Resume labeling session' }).isVisible()) {
     await openLabelingSetup(page);
   }
   const chooser = await chooseImportFile(page);
@@ -190,6 +375,7 @@ function encryptedSession(plaintext, passphrase) {
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final(), cipher.getAuthTag()]);
   return Buffer.from(JSON.stringify({
     v: 2,
+    alg: 'AES-GCM-256 / PBKDF2-SHA-256 / 310000 iterations',
     salt: salt.toString('base64'),
     iv: iv.toString('base64'),
     data: ciphertext.toString('base64')
