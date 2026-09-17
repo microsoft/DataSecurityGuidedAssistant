@@ -9269,12 +9269,26 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       return arrayValuesToOwnMap(Object.keys(geographyRegulationRules).concat(Object.keys(regionCountryFilterOptions)));
     }
 
+    function getAllowedCountryFilterMap() {
+      var values = [];
+      Object.keys(regionCountryFilterOptions).forEach(function(regionKey) {
+        regionCountryFilterOptions[regionKey].forEach(function(option) {
+          values.push(option.value);
+        });
+      });
+      return arrayValuesToOwnMap(values);
+    }
+
     function getAllowedDataTypeMap() {
       return arrayValuesToOwnMap(dataTypeOptions.map(function(item) { return item.key; }));
     }
 
     function getAllowedLicenseMap() {
       return arrayValuesToOwnMap((model.dlp.licensingOptions || []).map(function(option) { return option.key; }));
+    }
+
+    function getAllowedRegulationMap() {
+      return arrayValuesToOwnMap(regulationDefs.map(function(regulation) { return regulation.key; }));
     }
 
     function getAllowedSitMap() {
@@ -9377,6 +9391,10 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       normalized.policy.limitations = (policy.limitations || []).slice();
       normalized.policy.warnings = (policy.warnings || []).slice();
       normalized.policy.rolloutPhases = sanitizeRolloutPlan(policy.rolloutPhases, path + '.policy.rolloutPhases');
+      if (policy.locationKeys !== undefined) {
+        assertAllowedStrings(policy.locationKeys, dlpLocationLabels, path + '.policy.locationKeys');
+        normalized.policy.locationKeys = policy.locationKeys.slice();
+      }
       if (policy.exceptions !== undefined && policy.exceptions !== null) {
         assertImport(policy.exceptions && typeof policy.exceptions === 'object' && !Array.isArray(policy.exceptions), path + '.policy.exceptions must be an object.');
         if (policy.exceptions.exemptGroups !== undefined) assertStringArray(policy.exceptions.exemptGroups, path + '.policy.exceptions.exemptGroups');
@@ -9384,27 +9402,68 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       normalized.policy.exceptions = Object.assign({}, cloneData(policy.exceptions || {}), {
         exemptGroups: policy.exceptions && policy.exceptions.exemptGroups ? policy.exceptions.exemptGroups.slice() : []
       });
+      var normalizedSits = [];
+      if (policy.labelPolicies !== undefined) {
+        assertImport(Array.isArray(policy.labelPolicies), path + '.policy.labelPolicies must be an array.');
+        normalized.policy.labelPolicies = policy.labelPolicies.map(function(labelPolicy, policyIndex) {
+          var policyPath = path + '.policy.labelPolicies[' + policyIndex + ']';
+          assertImport(labelPolicy && typeof labelPolicy === 'object' && !Array.isArray(labelPolicy), policyPath + ' must be an object.');
+          if (labelPolicy.conditions !== undefined && labelPolicy.conditions !== null) {
+            assertImport(labelPolicy.conditions && typeof labelPolicy.conditions === 'object' && !Array.isArray(labelPolicy.conditions), policyPath + '.conditions must be an object.');
+            if (labelPolicy.conditions.sits !== undefined) {
+              assertImport(Array.isArray(labelPolicy.conditions.sits), policyPath + '.conditions.sits must be an array.');
+              var sanitizedLabelPolicySits = labelPolicy.conditions.sits.map(function(item, sitIndex) {
+                return sanitizeImportedPolicySit(item, policyPath + '.conditions.sits[' + sitIndex + ']');
+              });
+              normalizedSits = normalizedSits.concat(sanitizedLabelPolicySits);
+              var normalizedLabelPolicy = cloneData(labelPolicy);
+              normalizedLabelPolicy.conditions.sits = sanitizedLabelPolicySits;
+              return normalizedLabelPolicy;
+            }
+          }
+          return cloneData(labelPolicy);
+        });
+      }
       if (policy.conditions !== undefined && policy.conditions !== null) {
         assertImport(policy.conditions && typeof policy.conditions === 'object' && !Array.isArray(policy.conditions), path + '.policy.conditions must be an object.');
         if (policy.conditions.sits !== undefined) {
           assertImport(Array.isArray(policy.conditions.sits), path + '.policy.conditions.sits must be an array.');
           normalized.policy.conditions = cloneData(policy.conditions);
           normalized.policy.conditions.sits = policy.conditions.sits.map(function(item, index) {
-            assertImport(item && typeof item === 'object' && !Array.isArray(item), path + '.policy.conditions.sits[' + index + '] must be an object.');
-            assertImport(typeof item.label === 'string', path + '.policy.conditions.sits[' + index + '].label must be a string.');
-            var confidence = item.confidence === undefined || item.confidence === null ? 'medium' : String(item.confidence).toLowerCase();
-            assertImport(['low', 'medium', 'high'].indexOf(confidence) !== -1, path + '.policy.conditions.sits[' + index + '].confidence is invalid.');
-            if (item.minCount !== undefined) assertImport(typeof item.minCount === 'number' && Number.isFinite(item.minCount), path + '.policy.conditions.sits[' + index + '].minCount is invalid.');
-            return Object.assign({}, cloneData(item), {
-              confidence: confidence,
-              minCount: item.minCount === undefined ? 1 : item.minCount
-            });
+            return sanitizeImportedPolicySit(item, path + '.policy.conditions.sits[' + index + ']');
           });
+          normalizedSits = normalizedSits.concat(normalized.policy.conditions.sits);
         }
       }
       if (!normalized.policy.conditions) normalized.policy.conditions = { sits: [] };
-      if (!Array.isArray(normalized.policy.conditions.sits)) normalized.policy.conditions.sits = [];
+      var seenSits = Object.create(null);
+      normalized.policy.conditions.sits = normalizedSits.filter(function(item) {
+        var identity = item.key ? 'key:' + item.key : 'label:' + item.label;
+        if (hasOwn(seenSits, identity)) return false;
+        seenSits[identity] = true;
+        return true;
+      });
       return normalized;
+    }
+
+    function sanitizeImportedPolicySit(item, path) {
+      assertImport(item && typeof item === 'object' && !Array.isArray(item), path + ' must be an object.');
+      assertImport(typeof item.label === 'string', path + '.label must be a string.');
+      var trustedLabel = item.label;
+      if (item.key !== undefined) {
+        assertImport(typeof item.key === 'string' && hasOwn(getAllowedSitMap(), item.key), path + '.key is invalid.');
+        var trustedSit = getAllSitCatalogItems().find(function(catalogItem) { return catalogItem.key === item.key; });
+        assertImport(!!trustedSit, path + '.key is invalid.');
+        trustedLabel = trustedSit.label;
+      }
+      var confidence = item.confidence === undefined || item.confidence === null ? 'medium' : String(item.confidence).toLowerCase();
+      assertImport(['low', 'medium', 'high'].indexOf(confidence) !== -1, path + '.confidence is invalid.');
+      if (item.minCount !== undefined) assertImport(Number.isInteger(item.minCount) && item.minCount > 0, path + '.minCount is invalid.');
+      return Object.assign({}, cloneData(item), {
+        label: trustedLabel,
+        confidence: confidence,
+        minCount: item.minCount === undefined ? 1 : item.minCount
+      });
     }
 
     function getTerminalBranchFromHistory(history, expectedResultKey) {
@@ -9440,21 +9499,47 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       return 'The saved decision path maps to this label in the current built-in model.';
     }
 
-    function sanitizeImportedHistory(history, path) {
-      if (history === undefined) return [];
+    function analyzeImportedHistory(history, path) {
+      if (history === undefined) {
+        return { history: [], currentQuestionId: 'q1', resultKey: null, rationale: '' };
+      }
       assertImport(Array.isArray(history), path + ' must be an array.');
       assertImport(history.length <= 50, path + ' exceeds the maximum decision path length.');
-      return history.map(function(step, index) {
+      var currentQuestionId = 'q1';
+      var resultKey = null;
+      var rationale = '';
+      var sanitized = history.map(function(step, index) {
         var stepPath = path + '[' + index + ']';
         assertKnownProperties(step, ['questionId', 'question', 'answer'], stepPath);
-        assertImport(typeof step.questionId === 'string' && hasOwn(model.questions, step.questionId), stepPath + '.questionId is invalid.');
+        assertImport(typeof step.questionId === 'string' && hasOwn(model.questions, step.questionId) && step.questionId === currentQuestionId, stepPath + '.questionId does not follow the decision path.');
         assertImport(step.answer === 'YES' || step.answer === 'NO', stepPath + '.answer is invalid.');
+        var branch = model.questions[step.questionId][step.answer === 'YES' ? 'yes' : 'no'];
+        assertImport(branch, stepPath + '.answer is invalid.');
+        assertImport(index === history.length - 1 || !branch.result, stepPath + ' continues after a terminal result.');
+        if (branch.result) {
+          resultKey = branch.result;
+          currentQuestionId = null;
+          rationale = branch.rationale || '';
+        } else {
+          assertImport(typeof branch.next === 'string' && hasOwn(model.questions, branch.next), stepPath + ' has an invalid next question.');
+          currentQuestionId = branch.next;
+        }
         return {
           questionId: step.questionId,
           question: model.questions[step.questionId].text,
           answer: step.answer
         };
       });
+      return {
+        history: sanitized,
+        currentQuestionId: currentQuestionId,
+        resultKey: resultKey,
+        rationale: rationale
+      };
+    }
+
+    function sanitizeImportedHistory(history, path) {
+      return analyzeImportedHistory(history, path).history;
     }
 
     function sanitizeImportedSessionEntry(entry, index, fallbackContext) {
@@ -9466,20 +9551,24 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
       assertImport(typeof entry.labelKey === 'string' && hasOwn(model.labels, entry.labelKey), path + '.labelKey is invalid.');
       if (entry.labelModel !== undefined) assertImport(entry.labelModel === '8tier' || entry.labelModel === '4tier', path + '.labelModel is invalid.');
       if (entry.regulations !== undefined) assertStringArray(entry.regulations, path + '.regulations');
+      if (entry.regulations !== undefined) assertAllowedStrings(entry.regulations, getAllowedRegulationMap(), path + '.regulations');
       if (entry.dlpEnabled !== undefined) assertImport(typeof entry.dlpEnabled === 'boolean', path + '.dlpEnabled has an invalid type.');
       var trustedLabel = entry.labelModel === '4tier'
         ? (hasOwn(fourTierLabels, getFourTierKey(entry.labelKey)) ? fourTierLabels[getFourTierKey(entry.labelKey)] : model.labels[entry.labelKey])
         : model.labels[entry.labelKey];
+      var decisionPath = analyzeImportedHistory(entry.history, path + '.history');
+      if (decisionPath.history.length) {
+        assertImport(decisionPath.resultKey === entry.labelKey, path + '.history does not produce labelKey.');
+      }
       var sanitizedDlpSummary = sanitizeDlpSummary(entry.dlpSummary, path + '.dlpSummary');
-      var sanitizedHistory = sanitizeImportedHistory(entry.history, path + '.history');
       return {
         labelKey: entry.labelKey,
         labelName: trustedLabel.name,
         implementationLabelName: model.labels[entry.labelKey].name,
         labelModel: entry.labelModel || '8tier',
         color: model.labels[entry.labelKey].color,
-        rationale: getTrustedRationaleForKey(entry.labelKey, sanitizedHistory),
-        history: sanitizedHistory,
+        rationale: decisionPath.rationale || getTrustedRationaleForKey(entry.labelKey, decisionPath.history),
+        history: decisionPath.history,
         regulations: (entry.regulations || []).slice(),
         contextSnapshot: sanitizeImportedContext(entry.contextSnapshot || fallbackContext || {}, path + '.contextSnapshot'),
         dlpEnabled: !!sanitizedDlpSummary,
@@ -9504,6 +9593,12 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         if (ctx[key] !== undefined) assertStringArray(ctx[key], path + '.' + key);
       });
       if (ctx.dataTypes !== undefined) assertAllowedStrings(ctx.dataTypes, getAllowedDataTypeMap(), path + '.dataTypes');
+      ['regulations', 'manualRegulations', 'suppressedRegulations'].forEach(function(key) {
+        if (ctx[key] !== undefined) assertAllowedStrings(ctx[key], getAllowedRegulationMap(), path + '.' + key);
+      });
+      if (ctx.regulationCountryFilter !== undefined && ctx.regulationCountryFilter !== null) {
+        assertImport(typeof ctx.regulationCountryFilter === 'string' && hasOwn(getAllowedCountryFilterMap(), ctx.regulationCountryFilter), path + '.regulationCountryFilter is invalid.');
+      }
       if (ctx.labelModel !== undefined) assertImport(ctx.labelModel === '8tier' || ctx.labelModel === '4tier', path + '.labelModel is invalid.');
       if (ctx.locked !== undefined) assertImport(typeof ctx.locked === 'boolean', path + '.locked has an invalid type.');
       var normalizedLicense = null;
@@ -9705,10 +9800,17 @@ labels: ["general", "confidential_all", "confidential_specific", "hc_all", "hc_s
         return sanitizeImportedSessionEntry(entry, index, context);
       });
       if (sanitized.labelingState) {
-        sanitized.labelingState.history = sanitizeImportedHistory(sanitized.labelingState.history, 'labelingState.history');
-        sanitized.labelingState.rationale = sanitized.labelingState.resultKey
-          ? getTrustedRationaleForKey(sanitized.labelingState.resultKey, sanitized.labelingState.history)
-          : '';
+        var decisionPath = analyzeImportedHistory(sanitized.labelingState.history, 'labelingState.history');
+        if (sanitized.labelingState.resultKey) {
+          assertImport(decisionPath.resultKey === sanitized.labelingState.resultKey, 'labelingState.history does not produce resultKey.');
+          sanitized.labelingState.currentQuestionId = null;
+          sanitized.labelingState.rationale = decisionPath.rationale || getTrustedRationaleForKey(sanitized.labelingState.resultKey, decisionPath.history);
+        } else {
+          assertImport(!decisionPath.resultKey, 'labelingState.history produces a result without resultKey.');
+          sanitized.labelingState.currentQuestionId = decisionPath.currentQuestionId;
+          sanitized.labelingState.rationale = '';
+        }
+        sanitized.labelingState.history = decisionPath.history;
       }
       return sanitized;
     }
